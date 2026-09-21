@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+source "$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)/lib.sh"
+
+log_hotkey "theme-pick start"
+
+themes=()
+while IFS= read -r name; do
+  themes+=("$name")
+done < <(list_themes)
+if [[ ${#themes[@]} -eq 0 ]]; then
+  notify "没有可用主题"
+  log_hotkey "theme-pick: no themes"
+  exit 1
+fi
+
+current="$(current_theme_name)"
+if [[ ! -d "$THEMES_DIR/$current" ]]; then
+  current="${themes[0]}"
+fi
+
+quoted=""
+for name in "${themes[@]}"; do
+  quoted+="\"${name}\","
+done
+quoted="${quoted%,}"
+
+# Host the list in Finder so AeroSpace's background exec actually shows a window.
+choice="$(
+  /usr/bin/osascript 2>>"$STATE_DIR/hotkey.log" <<APPLESCRIPT
+tell application "Finder" to activate
+delay 0.15
+set themeList to {${quoted}}
+set theChoice to choose from list themeList with title "mac-theme" with prompt "选择主题" default items {"${current}"}
+if theChoice is false then
+  return ""
+end if
+return item 1 of theChoice
+APPLESCRIPT
+)" || true
+
+choice="${choice//$'\r'/}"
+if [[ -z "${choice}" ]]; then
+  log_hotkey "theme-pick cancelled"
+  exit 0
+fi
+
+log_hotkey "theme-pick chose $choice"
+"$ROOT/bin/theme-set" "$choice"

@@ -1,0 +1,254 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+source "$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)/lib.sh"
+
+usage() {
+  cat <<'EOF'
+theme-set <name>         Apply a theme
+theme-set --next         Cycle to the next theme
+theme-set --prev         Cycle to the previous theme
+theme-set --list         List themes
+theme-set --wallpaper    Cycle wallpaper inside the current theme
+EOF
+}
+
+hex_files() {
+  local dir="$1"
+  find "$dir" -maxdepth 1 -type f \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.heic' \) | sort
+}
+
+ensure_wallpaper() {
+  local theme_dir="$1"
+  local theme_name="$2"
+  local colors="$theme_dir/colors.toml"
+  local bg_dir="$theme_dir/backgrounds"
+  mkdir -p "$bg_dir"
+  if [[ -n "$(hex_files "$bg_dir")" ]]; then
+    return
+  fi
+  python3 "$ROOT/bin/gen-wallpaper.py" "$colors" "$bg_dir/generated.jpg" grain
+}
+
+set_wallpaper() {
+  local image="$1"
+  python3 - "$image" <<'PY'
+import subprocess, sys
+from pathlib import Path
+image = Path(sys.argv[1]).resolve()
+script = f'''
+tell application "System Events"
+  tell every desktop
+    set picture to "{image}"
+  end tell
+end tell
+'''
+try:
+    subprocess.run(["/usr/bin/osascript", "-e", script], check=False, timeout=5)
+except subprocess.TimeoutExpired:
+    pass
+PY
+}
+
+write_ghostty_theme() {
+  local dest="$CONFIG_DIR/ghostty/themes/mac-theme"
+  mkdir -p "$(dirname "$dest")"
+  cat > "$dest" <<EOF
+palette = 0=${background}
+palette = 1=${red:-#d15d57}
+palette = 2=${green:-#2d9a48}
+palette = 3=${yellow:-#b8ba48}
+palette = 4=${blue:-#3d8f68}
+palette = 5=${magenta:-#708b6d}
+palette = 6=${cyan:-#4bb56a}
+palette = 7=${foreground}
+palette = 8=${muted}
+palette = 9=${bright_red:-${red:-#e97870}}
+palette = 10=${bright_green:-${green:-#5ed87a}}
+palette = 11=${bright_yellow:-${yellow:-#d4d66a}}
+palette = 12=${bright_blue:-${blue:-#5aa080}}
+palette = 13=${bright_magenta:-${magenta:-#7a927a}}
+palette = 14=${bright_cyan:-${cyan:-#6ecb88}}
+palette = 15=${bright_foreground}
+background = ${background}
+foreground = ${foreground}
+cursor-color = ${cursor}
+selection-background = ${selection}
+selection-foreground = ${bright_foreground}
+EOF
+}
+
+write_borders() {
+  mkdir -p "$CONFIG_DIR/borders"
+  cat > "$CONFIG_DIR/borders/bordersrc" <<EOF
+#!/bin/bash
+
+options=(
+  style=round
+  width=4.0
+  hidpi=off
+  active_color=${acc_argb}
+  inactive_color=${inactive_border}
+)
+
+borders "\${options[@]}"
+EOF
+  chmod +x "$CONFIG_DIR/borders/bordersrc"
+}
+
+write_sketchy_colors() {
+  mkdir -p "$CONFIG_DIR/sketchybar"
+  cat > "$CONFIG_DIR/sketchybar/colors.sh" <<EOF
+export BAR_BG="${bar_bg}"
+export BAR_BORDER="${bar_border}"
+export ACCENT="${acc_argb}"
+export FG="${fg_argb}"
+export MUTED="${muted_argb}"
+export SELECT="${sel_argb}"
+export BG="${bg_argb}"
+export THEME_NAME="${theme_name}"
+EOF
+}
+
+apply_appearance() {
+  if [[ "${mode}" == "light" ]]; then
+    /usr/bin/osascript -e 'tell application "System Events" to tell appearance preferences to set dark mode to false' >/dev/null 2>&1 || true
+    defaults delete -g AppleInterfaceStyle >/dev/null 2>&1 || true
+  else
+    /usr/bin/osascript -e 'tell application "System Events" to tell appearance preferences to set dark mode to true' >/dev/null 2>&1 || true
+    defaults write -g AppleInterfaceStyle -string Dark
+  fi
+
+  defaults write -g AppleAccentColor -int "${apple_accent}"
+  defaults write -g AppleHighlightColor -string "${apple_highlight}"
+  if [[ "${apple_accent}" == "-1" ]]; then
+    defaults write -g AppleAquaColorVariant -int 6
+  else
+    defaults write -g AppleAquaColorVariant -int 1
+  fi
+
+  if [[ -x "$ROOT/bin/notify-colors" ]]; then
+    "$ROOT/bin/notify-colors" >/dev/null 2>&1 || true
+  fi
+}
+
+reload_shell() {
+  if command -v sketchybar >/dev/null 2>&1; then
+    sketchybar --reload >/dev/null 2>&1 || true
+  fi
+  if command -v borders >/dev/null 2>&1; then
+    killall borders >/dev/null 2>&1 || true
+    (borders &) >/dev/null 2>&1 || true
+  fi
+}
+
+apply_theme() {
+  local theme_name="$1"
+  local theme_dir="$THEMES_DIR/$theme_name"
+  local colors_file="$theme_dir/colors.toml"
+
+  if [[ ! -f "$colors_file" ]]; then
+    echo "未知主题：$theme_name" >&2
+    echo "可用主题：" >&2
+    list_themes >&2
+    exit 1
+  fi
+
+  eval "$(python3 "$ROOT/bin/parse-colors.py" "$colors_file" export)"
+  mkdir -p "$STATE_DIR"
+  ln -sfn "$theme_dir" "$CURRENT_LINK"
+  printf '%s\n' "$theme_name" > "$STATE_DIR/theme.name"
+
+  write_ghostty_theme
+  write_borders
+  write_sketchy_colors
+  apply_appearance
+
+  # Never restart rain. It is a full-screen compositor and runs hot.
+  if pgrep -x mac-theme-rain >/dev/null 2>&1; then
+    "$ROOT/bin/rain-ctl" stop >/dev/null 2>&1 || true
+  fi
+
+  ensure_wallpaper "$theme_dir" "$theme_name"
+  local wallpaper
+  wallpaper="$(hex_files "$theme_dir/backgrounds" | head -n 1)"
+  if [[ -n "${wallpaper}" ]]; then
+    printf '%s\n' "$wallpaper" > "$STATE_DIR/wallpaper"
+    set_wallpaper "$wallpaper"
+  fi
+
+  reload_shell
+  log_hotkey "applied $theme_name"
+  notify "已切换到 ${theme_name}"
+  echo "已切换到 ${theme_name}"
+}
+
+cycle_theme() {
+  local direction="$1"
+  local current
+  current="$(current_theme_name)"
+  local themes=()
+  local name
+  while IFS= read -r name; do
+    themes+=("$name")
+  done < <(list_themes)
+  local idx=0
+  local i
+  for i in "${!themes[@]}"; do
+    if [[ "${themes[$i]}" == "$current" ]]; then
+      idx="$i"
+      break
+    fi
+  done
+  local count="${#themes[@]}"
+  local next
+  if [[ "$direction" == "next" ]]; then
+    next="${themes[$(( (idx + 1) % count ))]}"
+  else
+    next="${themes[$(( (idx - 1 + count) % count ))]}"
+  fi
+  apply_theme "$next"
+}
+
+cycle_wallpaper() {
+  local theme_name
+  theme_name="$(current_theme_name)"
+  local theme_dir="$THEMES_DIR/$theme_name"
+  ensure_wallpaper "$theme_dir" "$theme_name"
+  local walls=()
+  local wall
+  while IFS= read -r wall; do
+    walls+=("$wall")
+  done < <(hex_files "$theme_dir/backgrounds")
+  if [[ ${#walls[@]} -eq 0 ]]; then
+    echo "这个主题没有壁纸" >&2
+    exit 1
+  fi
+  local current="${STATE_DIR}/wallpaper"
+  local idx=0
+  if [[ -f "$current" ]]; then
+    local now
+    now="$(cat "$current")"
+    local i
+    for i in "${!walls[@]}"; do
+      if [[ "${walls[$i]}" == "$now" ]]; then
+        idx="$i"
+        break
+      fi
+    done
+  fi
+  local next="${walls[$(( (idx + 1) % ${#walls[@]} ))]}"
+  printf '%s\n' "$next" > "$current"
+  set_wallpaper "$next"
+  echo "壁纸：$(basename "$next")"
+}
+
+cmd="${1:-}"
+case "$cmd" in
+  ""|-h|--help) usage ;;
+  --list) list_themes ;;
+  --next) cycle_theme next ;;
+  --prev) cycle_theme prev ;;
+  --wallpaper) cycle_wallpaper ;;
+  *) apply_theme "$cmd" ;;
+esac

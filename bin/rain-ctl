@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+source "$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)/lib.sh"
+
+AGENT_LABEL="com.mac-theme.rain"
+AGENT_PLIST="$HOME/Library/LaunchAgents/${AGENT_LABEL}.plist"
+RAIN_BIN="$ROOT/bin/mac-theme-rain"
+
+write_agent() {
+  mkdir -p "$HOME/Library/LaunchAgents"
+  cat > "$AGENT_PLIST" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>${AGENT_LABEL}</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>${RAIN_BIN}</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>ProcessType</key>
+  <string>Interactive</string>
+  <key>LimitLoadToSessionType</key>
+  <string>Aqua</string>
+</dict>
+</plist>
+EOF
+}
+
+cmd="${1:-status}"
+case "$cmd" in
+  start)
+    echo "数字雨已移除，不再启动" >&2
+    exit 1
+    ;;
+  stop)
+    launchctl bootout "gui/$(id -u)/$AGENT_LABEL" >/dev/null 2>&1 || true
+    killall mac-theme-rain >/dev/null 2>&1 || true
+    echo "数字雨已停止"
+    ;;
+  uninstall)
+    launchctl bootout "gui/$(id -u)/$AGENT_LABEL" >/dev/null 2>&1 || true
+    killall mac-theme-rain >/dev/null 2>&1 || true
+    rm -f "$AGENT_PLIST"
+    rm -rf "$HOME/Library/Screen Savers/MacThemeRain.saver"
+    defaults -currentHost write com.apple.screensaver idleTime -int 300
+    /usr/bin/osascript >/dev/null 2>&1 -e 'tell application "System Events" to set current screen saver to screen saver "Drift"' || true
+    echo "数字雨与屏保已卸载"
+    ;;
+  reload)
+    killall -USR1 mac-theme-rain >/dev/null 2>&1 || true
+    ;;
+  status)
+    if pgrep -x mac-theme-rain >/dev/null 2>&1; then
+      echo "running"
+    else
+      echo "stopped"
+    fi
+    ;;
+  *)
+    echo "rain-ctl stop|uninstall|status" >&2
+    exit 2
+    ;;
+esac

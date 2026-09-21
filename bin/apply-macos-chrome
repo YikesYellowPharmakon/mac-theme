@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+# Layer A: official Sequoia appearance knobs. Does not touch SIP.
+set -euo pipefail
+
+quiet=0
+if [[ "${1:-}" == "--quiet" ]]; then
+  quiet=1
+fi
+
+# Wallpaper tinting on (the key is inverted: false = allow tint).
+defaults write -g AppleReduceDesktopTinting -bool false
+
+# Keep glass; do not flatten the UI. These domains can be TCC-locked.
+defaults write com.apple.universalaccess reduceTransparency -bool false >/dev/null 2>&1 || true
+defaults write com.apple.universalaccess increaseContrast -bool false >/dev/null 2>&1 || true
+defaults write com.apple.universalaccess differentiateWithoutColor -bool false >/dev/null 2>&1 || true
+
+# Dock
+defaults write com.apple.dock autohide -bool true
+defaults write com.apple.dock autohide-delay -float 0.05
+defaults write com.apple.dock autohide-time-modifier -float 0.35
+defaults write com.apple.dock magnification -bool false
+defaults write com.apple.dock tilesize -int 40
+defaults write com.apple.dock mineffect -string scale
+defaults write com.apple.dock show-recents -bool false
+defaults write com.apple.dock mru-spaces -bool false
+defaults write com.apple.dock orientation -string bottom
+
+# Native menu bar hides so SketchyBar can own the top edge.
+defaults write NSGlobalDomain _HIHideMenuBar -bool true
+defaults write NSGlobalDomain AppleMenuBarVisibleInFullscreen -bool false
+defaults write NSGlobalDomain AppleShowScrollBars -string WhenScrolling
+
+# Finder chrome stays readable, not noisy.
+defaults write com.apple.finder ShowPathbar -bool true
+defaults write com.apple.finder ShowStatusBar -bool false
+defaults write com.apple.finder FXPreferredViewStyle -string Nlsv
+defaults write com.apple.finder ShowHardDrivesOnDesktop -bool false
+defaults write com.apple.finder ShowExternalHardDrivesOnDesktop -bool false
+defaults write com.apple.finder ShowRemovableMediaOnDesktop -bool false
+defaults write com.apple.finder _FXSortFoldersFirst -bool true
+
+# Sequoia: clicking the wallpaper must not shove windows aside.
+defaults write com.apple.WindowManager EnableStandardClickToShowDesktop -bool false
+defaults write com.apple.WindowManager StandardHideDesktopIcons -bool false
+defaults write com.apple.WindowManager GloballyEnabled -bool false
+
+add_login_item() {
+  local name="$1" path="$2" hidden="$3"
+  [[ -d "$path" ]] || return 0
+  osascript >/dev/null 2>&1 <<APPLESCRIPT || true
+tell application "System Events"
+  if not (exists login item "$name") then
+    make login item at end with properties {path:"$path", hidden:$hidden}
+  end if
+end tell
+APPLESCRIPT
+}
+add_login_item "Ice" "/Applications/Ice.app" true
+add_login_item "Raycast" "/Applications/Raycast.app" false
+
+# Raycast stays a launcher. Hide first-run store nags.
+# Do not enable Window Management (AeroSpace already tiles).
+# Clipboard History lives in Raycast's encrypted DB; install.sh opens it once.
+defaults write com.raycast.macos showGettingStartedLink -bool false
+defaults write com.raycast.macos onboarding_showTasksProgress -bool false
+
+killall Dock >/dev/null 2>&1 || true
+killall SystemUIServer >/dev/null 2>&1 || true
+
+if [[ "$quiet" -eq 0 ]]; then
+  echo "已套用系统外观：深浅色由主题决定，窗口着色、自动隐藏 Dock / 菜单栏已打开。"
+fi

@@ -1,0 +1,91 @@
+#!/bin/bash
+
+export PATH="/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+PLUGIN_DIR="$HOME/.config/sketchybar/plugins"
+source "$HOME/.config/sketchybar/colors.sh" 2>/dev/null || true
+
+BAR_BG="${BAR_BG:-0xc8080c09}"
+ACCENT="${ACCENT:-0xff3cbf5c}"
+FG="${FG:-0xff8bc98c}"
+MUTED="${MUTED:-0xff678d6a}"
+SELECT="${SELECT:-0xff23482a}"
+FONT="JetBrainsMono NF"
+
+sketchybar --bar \
+  height=34 \
+  position=top \
+  sticky=on \
+  padding_left=14 \
+  padding_right=14 \
+  color="$BAR_BG" \
+  border_color="$ACCENT" \
+  border_width=1 \
+  blur_radius=8 \
+  notch_width=200 \
+  display=all \
+  shadow=off
+
+sketchybar --default \
+  icon.font="${FONT}:Regular:15.0" \
+  icon.color="$FG" \
+  icon.width=20 \
+  icon.padding_right=4 \
+  label.font="${FONT}:Medium:12.5" \
+  label.color="$FG" \
+  padding_left=6 \
+  padding_right=6 \
+  background.height=22 \
+  background.corner_radius=8 \
+  background.drawing=off
+
+sketchybar --add event aerospace_workspace_change
+
+for sid in 1 2 3 4 5 6 7 8 9; do
+  sketchybar --add item space."$sid" left \
+    --set space."$sid" \
+      icon="$sid" \
+      icon.padding_left=7 \
+      icon.padding_right=7 \
+      icon.color="$MUTED" \
+      background.color="$SELECT" \
+      background.drawing=off \
+      click_script="/opt/homebrew/bin/aerospace workspace $sid" \
+    --subscribe space."$sid" aerospace_workspace_change
+done
+
+sketchybar --add item aerospace_listener left \
+  --set aerospace_listener drawing=off \
+    script="$PLUGIN_DIR/aerospace.sh" \
+  --subscribe aerospace_listener aerospace_workspace_change
+
+sketchybar --add item front_app center \
+  --set front_app \
+    icon.color="$ACCENT" \
+    label.color="$ACCENT" \
+    script="$PLUGIN_DIR/front_app.sh" \
+  --subscribe front_app front_app_switched
+
+sketchybar --add item volume right \
+  --set volume \
+    icon="" \
+    icon.color="$MUTED" \
+    script="$PLUGIN_DIR/volume.sh" \
+  --subscribe volume volume_change
+
+sketchybar --add item battery right \
+  --set battery \
+    icon="" \
+    icon.color="$MUTED" \
+    update_freq=30 \
+    script="$PLUGIN_DIR/battery.sh" \
+  --subscribe battery system_woke power_source_change
+
+sketchybar --add item clock right \
+  --set clock \
+    icon="" \
+    icon.color="$ACCENT" \
+    update_freq=30 \
+    script="$PLUGIN_DIR/clock.sh"
+
+"$PLUGIN_DIR/aerospace.sh"
+sketchybar --update

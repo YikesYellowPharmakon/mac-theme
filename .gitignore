@@ -1,0 +1,6 @@
+state/
+bin/notify-colors
+bin/mac-theme-rain
+build/
+themes/*/backgrounds/
+.DS_Store

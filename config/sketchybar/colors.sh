@@ -1,0 +1,8 @@
+export BAR_BG="0xc80b0c16"
+export BAR_BORDER="0x66151828"
+export ACCENT="0xff82fb9c"
+export FG="0xffddf7ff"
+export MUTED="0xff2d3450"
+export SELECT="0xff1f253a"
+export BG="0xff0b0c16"
+export THEME_NAME="hackerman"

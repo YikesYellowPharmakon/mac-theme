@@ -1,0 +1,14 @@
+# mac-theme — Ghostty. Colors live in themes/mac-theme and are rewritten by theme-set.
+theme = mac-theme
+font-family = JetBrainsMono Nerd Font Mono
+font-size = 13.5
+macos-titlebar-style = transparent
+background-opacity = 0.96
+background-blur-radius = 12
+window-padding-x = 12
+window-padding-y = 10
+window-padding-balance = true
+cursor-style = bar
+confirm-close-surface = false
+clipboard-read = allow
+clipboard-paste-protection = false
