@@ -563,6 +563,7 @@ static void collectTabs(AXUIElementRef element, int depth, BOOL inTabs, NSMutabl
     int _generation;
     int _leaveToken;
     int _awayPolls;
+    int _reviveAttempts;
     NSColor *_fill, *_accent, *_muted;
     dispatch_source_t _themeSource;
     int _themeFD;
@@ -727,6 +728,9 @@ static void collectTabs(AXUIElementRef element, int depth, BOOL inTabs, NSMutabl
     _shown = NO;
     _awayPolls = 0;
     [self rebuildStrips];
+    // Sleep orders the capsule out, and that window then ignores later
+    // orderFront calls. A new panel is the only way back.
+    [self replaceCapsuleShowing:NO];
 }
 
 - (void)followPointer {
@@ -865,6 +869,57 @@ static void collectTabs(AXUIElementRef element, int depth, BOOL inTabs, NSMutabl
     _capsule.frame = NSMakeRect(0, 0, size.width, size.height);
 }
 
+// orderOut sticks. After it, orderFrontRegardless still moves the frame
+// (the capsule slides to y=850) but the window server never lists it
+// on screen again. Hide by sliding it away, and replace the panel if a
+// show lands off the on-screen list anyway.
+- (BOOL)capsuleListedOnScreen {
+    NSInteger number = _dock.windowNumber;
+    if (number <= 0) return NO;
+    CFArrayRef list = CGWindowListCopyWindowInfo(kCGWindowListOptionOnScreenOnly, kCGNullWindowID);
+    if (!list) return YES;
+    BOOL found = NO;
+    CFIndex count = CFArrayGetCount(list);
+    if (count == 0) {
+        CFRelease(list);
+        return YES;
+    }
+    for (NSDictionary *window in (__bridge NSArray *)list) {
+        if ([window[(id)kCGWindowNumber] integerValue] != number) continue;
+        if ([window[(id)kCGWindowLayer] integerValue] != kDockLevel) continue;
+        found = YES;
+        break;
+    }
+    CFRelease(list);
+    return found;
+}
+
+- (void)replaceCapsuleShowing:(BOOL)show {
+    NSScreen *screen = _screen ?: NSScreen.mainScreen;
+    if (_dock) [_dock close];
+    _dock = nil;
+    _capsule = nil;
+    [self buildDock];
+    _shown = NO;
+    _generation++;
+    note("capsule rebuilt");
+    if (show && screen && !self.menuOpen && !self.dragging) [self showOnScreen:screen];
+}
+
+- (void)healCapsuleIfStillMissing:(int)generation screen:(NSScreen *)screen {
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.35 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        if (generation != self->_generation || !self->_shown || self.menuOpen || self.dragging) return;
+        if ([self capsuleListedOnScreen]) {
+            self->_reviveAttempts = 0;
+            return;
+        }
+        if (self->_reviveAttempts >= 2) return;
+        self->_reviveAttempts++;
+        self->_screen = screen;
+        [self replaceCapsuleShowing:YES];
+    });
+}
+
 - (void)showOnScreen:(NSScreen *)screen {
     if (!screen || self.menuOpen || self.dragging) return;
     _leaveToken++;
@@ -882,6 +937,7 @@ static void collectTabs(AXUIElementRef element, int depth, BOOL inTabs, NSMutabl
     [self placeTiles:tiles splitAt:splitAt maxWidth:screen.frame.size.width - 24 headroom:0];
     NSSize size = _capsule.frame.size;
     NSRect frame = NSMakeRect(NSMidX(screen.frame) - size.width / 2, screen.frame.origin.y, size.width, size.height);
+    _dock.alphaValue = 1;
     _dock.ignoresMouseEvents = NO;
     if (animate) {
         [_dock setFrame:NSOffsetRect(frame, 0, -frame.size.height - 12) display:NO];
@@ -896,6 +952,7 @@ static void collectTabs(AXUIElementRef element, int depth, BOOL inTabs, NSMutabl
         [_dock orderFrontRegardless];
     }
     [_capsule setNeedsDisplay:YES];
+    [self healCapsuleIfStillMissing:_generation screen:screen];
 }
 
 - (void)pointerEnteredCapsule { _leaveToken++; }
@@ -1029,7 +1086,10 @@ static id exposeKeyMonitor;
     _shown = NO;
     _generation++;
     _leaveToken++;
-    [_dock orderOut:nil];
+    _dock.ignoresMouseEvents = YES;
+    _dock.alphaValue = 0;
+    NSRect frame = _dock.frame;
+    [_dock setFrame:NSOffsetRect(frame, 0, -frame.size.height - 12) display:NO];
     setExposeHold(YES);
     signalBorders(SIGSTOP);
     fadeOwner(@"omacosy-bar", 0);
@@ -1050,7 +1110,9 @@ static id exposeKeyMonitor;
         ctx.timingFunction = [CAMediaTimingFunction functionWithName:kCAMediaTimingFunctionEaseIn];
         [[self->_dock animator] setFrame:NSOffsetRect(frame, 0, -frame.size.height - 12) display:YES];
     } completionHandler:^{
-        if (generation == self->_generation) [self->_dock orderOut:nil];
+        // Leave it ordered in. orderOut is what made the next show move
+        // the frame without the capsule ever appearing.
+        if (generation == self->_generation) self->_dock.alphaValue = 0;
     }];
 }
 
@@ -2026,6 +2088,16 @@ end tell\n", path, path, name, indexPath];
 // reaches the bottom two points, including a push that stays there.
 // Hold the pointer just inside the hit strip so that gesture never lands.
 static CFMachPortRef edgePort;
+static BOOL screenLocked = NO;
+
+// A live HID tap makes loginwindow accept the password and then lock
+// again. Leave the tap off for the whole lock, including the second
+// after unlock, and do not let the poll turn it back on.
+static void noteScreenLocked(BOOL locked) {
+    screenLocked = locked;
+    if (edgePort) CGEventTapEnable(edgePort, locked ? false : true);
+    fprintf(stderr, "omacosy-dock: screen %s\n", locked ? "locked" : "unlocked");
+}
 
 static CGPoint guardBottomEdge(CGPoint p) {
     uint32_t count = 0;
@@ -2117,6 +2189,7 @@ static void restoreSystemDockChrome(void) {
         CGPoint p = CGEventGetLocation(event);
         CFRelease(event);
         CGPoint q = guardBottomEdge(p);
+        if (screenLocked) return;
         if (q.y != p.y) CGWarpMouseCursorPosition(q);
         if (edgePort && !CGEventTapIsEnabled(edgePort)) CGEventTapEnable(edgePort, true);
         if (nearBottomEdge(q)) hideSystemDockChrome();
@@ -2124,6 +2197,21 @@ static void restoreSystemDockChrome(void) {
         [self followPointer];
     }];
     [[NSRunLoop mainRunLoop] addTimer:timer forMode:NSRunLoopCommonModes];
+    NSDistributedNotificationCenter *dnc = NSDistributedNotificationCenter.defaultCenter;
+    [dnc addObserverForName:@"com.apple.screenIsLocked" object:nil queue:NSOperationQueue.mainQueue
+                 usingBlock:^(__unused NSNotification *note) {
+        noteScreenLocked(YES);
+    }];
+    [dnc addObserverForName:@"com.apple.screenIsUnlocked" object:nil queue:NSOperationQueue.mainQueue
+                 usingBlock:^(__unused NSNotification *note) {
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            noteScreenLocked(NO);
+            if (self.menuOpen || self.dragging) return;
+            self->_shown = NO;
+            [self rebuildStrips];
+            [self replaceCapsuleShowing:NO];
+        });
+    }];
 }
 
 @end
