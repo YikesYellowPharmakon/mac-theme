@@ -10,7 +10,7 @@
     --panel: #141a14;
     --line: #2a3a2a;
     --text: #e6f2e6;
-    --muted: #8aa08a;
+    --muted: #d5e6d5;
     --accent: #7bae4e;
     --key: #1c261c;
     --key-border: #3d5a3d;
@@ -126,7 +126,7 @@
   <tr><th>键位</th><th>作用</th></tr>
   <tr><td><span class="k">⌥ Enter</span></td><td>打开终端 Ghostty</td></tr>
   <tr><td><span class="k">⌥ Shift Enter</span></td><td>打开浏览器 Chrome</td></tr>
-  <tr><td><span class="k">⌥ Space</span></td><td>打开 Spotlight（搜 App、文件、菜单项、设置）。⌘Space 同样是 Spotlight</td></tr>
+  <tr><td><span class="k">⌥ Space</span></td><td>打开「搜索本机」（文件和应用）。⌘Space 仍交给系统自己的搜索键</td></tr>
   <tr><td><span class="k">⌥ K</span></td><td>打开 / 关闭键位提示（Esc 也可关）</td></tr>
   <tr><td><span class="k">⌥ W</span> 或 <span class="k">⌥ Q</span></td><td>关闭当前窗口（⌘W 仍是关标签）</td></tr>
   <tr><td><span class="k">⌥ Shift F</span></td><td>打开家目录（Finder）</td></tr>
@@ -194,7 +194,7 @@
   <tr><td>当前 App 的设置</td><td><span class="k">⌘ ,</span></td></tr>
   <tr><td>关于本机 / 系统设置 / 锁屏 / 睡眠 / 重启 / 关机</td><td>点顶栏左边苹果图标</td></tr>
   <tr><td>屏保 / 换主题</td><td>苹果菜单里的 Screensaver、Theme；锁屏也可用 <span class="k">⌃ ⌥ L</span>。直接下一套是 <span class="k">⌥ Shift T</span></td></tr>
-  <tr><td>记不清某个菜单项</td><td><span class="k">⌥ Space</span> 或 <span class="k">⌘ Space</span> 打开 Spotlight 搜索</td></tr>
+  <tr><td>记不清某个菜单项</td><td><span class="k">⌘ Space</span> 打开系统搜索。搜文件用 <span class="k">⌥ Space</span></td></tr>
 </table>
 <p class="note">各 App 自己的 ⌘ 快捷键都还在，只是不能再用鼠标去点那条系统菜单栏。</p>
 
@@ -264,7 +264,7 @@
   <tr><th>键位</th><th>作用</th></tr>
   <tr><td><span class="k">⌘ Tab</span></td><td>切换 App</td></tr>
   <tr><td><span class="k">⌘ `</span></td><td>同一 App 的窗口循环</td></tr>
-  <tr><td><span class="k">⌘ Space</span></td><td>Spotlight（和 ⌥Space 一样）</td></tr>
+  <tr><td><span class="k">⌘ Space</span></td><td>系统搜索</td></tr>
   <tr><td><span class="k">⌘ C</span> <span class="k">⌘ V</span> <span class="k">⌘ X</span> <span class="k">⌘ A</span> <span class="k">⌘ Z</span></td><td>复制 / 粘贴 / 剪切 / 全选 / 撤销</td></tr>
   <tr><td><span class="k">⌘ W</span></td><td>关标签（不是关窗口）</td></tr>
   <tr><td><span class="k">⌘ Q</span></td><td>退出 App</td></tr>
@@ -272,6 +272,42 @@
   <tr><td><span class="k">⌘ Shift 3 / 4 / 5</span></td><td>截图 / 录屏</td></tr>
   <tr><td><span class="k">⌃ ⌘ F</span> / 绿钮</td><td>系统原生全屏。鼠标移到顶端会滑出菜单栏和三个圆钮</td></tr>
   <tr><td>Caps Lock</td><td>Caps Lock / 中文输入法，没有改成 Super</td></tr>
+</table>
+
+<h2>终端日常</h2>
+<table>
+  <tr><th>键位</th><th>作用</th></tr>
+  <tr><td><span class="k">cd</span></td><td>进入目录。单独用回到主目录，<span class="k">cd -</span> 回到上一个</td></tr>
+  <tr><td><span class="k">ls -la</span></td><td>列出文件，含隐藏文件</td></tr>
+  <tr><td><span class="k">pwd</span></td><td>打印当前目录</td></tr>
+  <tr><td><span class="k">mkdir -p</span></td><td>新建文件夹，中间缺的目录一起建</td></tr>
+  <tr><td><span class="k">cp -R</span></td><td>复制。文件夹要加 -R</td></tr>
+  <tr><td><span class="k">mv</span></td><td>移动或改名</td></tr>
+  <tr><td><span class="k">rm -r</span></td><td>删除。没有废纸篓</td></tr>
+  <tr><td><span class="k">open .</span></td><td>用访达打开当前目录</td></tr>
+</table>
+
+<h2>Neovim 起步</h2>
+<table>
+  <tr><th>键位</th><th>作用</th></tr>
+  <tr><td><span class="k">i</span></td><td>开始写字。欢迎文字按 i 就消失</td></tr>
+  <tr><td><span class="k">Esc</span></td><td>回到普通模式</td></tr>
+  <tr><td><span class="k">h j k l</span></td><td>左、下、上、右</td></tr>
+  <tr><td><span class="k">:w</span></td><td>保存。先按 Esc，再输入 :w 回车</td></tr>
+  <tr><td><span class="k">:q</span></td><td>退出。<span class="k">:wq</span> 保存并退出，<span class="k">:q!</span> 不保存退出</td></tr>
+  <tr><td><span class="k">u</span></td><td>撤销。Ctrl+R 把撤销加回来</td></tr>
+  <tr><td><span class="k">dd / yy / p</span></td><td>剪切一行、复制一行、贴到下一行</td></tr>
+</table>
+
+<h2>Neovim 改文件</h2>
+<table>
+  <tr><th>键位</th><th>作用</th></tr>
+  <tr><td><span class="k">/文字</span></td><td>向下搜索。n 下一个，N 上一个</td></tr>
+  <tr><td><span class="k">:e 文件</span></td><td>打开另一个文件，Tab 补全名字</td></tr>
+  <tr><td><span class="k">o / O</span></td><td>在下面或上面新开一行并开始写</td></tr>
+  <tr><td><span class="k">dw / cw</span></td><td>删掉一个词，或删掉后接着改</td></tr>
+  <tr><td><span class="k">gg / G</span></td><td>到文件开头、结尾</td></tr>
+  <tr><td><span class="k">"+y / "+p</span></td><td>复制到系统剪贴板，或从剪贴板贴进来</td></tr>
 </table>
 
 <h2>来源文件</h2>

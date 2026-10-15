@@ -1830,12 +1830,17 @@ def write_sidecars(theme_dir: Path, colors: dict[str, str] | None = None) -> dic
     muted_bar = comment_ink(colors)
     if theme_dir.name == "snow-black":
         # Waybar in snow_black: black capsules, white active chip,
-        # white glyphs. Inactive marks stay dark so they read on the
-        # light wallpaper.
+        # white glyphs.
         item_bg = "#000000"
         accent_bar = "#FFFFFF"
         icon_bar = "#FFFFFF"
         muted_bar = "#3A4246"
+    # Cheatsheet explanations and inactive workspace marks are drawn in
+    # MUTED on the bar fill. Comment ink sits on that fill; snow's
+    # #3A4246 on black cannot be read. Lift toward a light neutral,
+    # still well under the label.
+    lift = 0.62 if theme_dir.name == "snow-black" else 0.42
+    muted_bar = mix_hex(muted_bar, "#cfd3d6", lift)
     (theme_dir / "sketchybar.sh").write_text(
         "#!/usr/bin/env bash\n"
         f"export BAR_COLOR={argb(bg, 'e6')}\n"
