@@ -270,6 +270,281 @@ static void apply(void) {
     }
 }
 
+// The bar orders a surface out while a fullscreen window covers its
+// display and orders it back in on the next window event. After Chrome
+// fullscreen that order-in can silently do nothing: the process stays
+// up, the window keeps alpha 1, and it is never listed on screen again.
+// Only the bar's own connection may order its windows (SLSOrderWindow
+// from here returns 1000), so the repair is a restart of the bar.
+// It runs only when a display has had no bar for several seconds while
+// nothing on it should hide the bar.
+static const int kMissingGraceSeconds = 4;
+static NSMutableDictionary<NSNumber *, NSNumber *> *missingSince;
+static NSMutableArray<NSDate *> *barKicks;
+static BOOL sessionLocked = NO;
+static CFAbsoluteTime unlockedAt = 0;
+
+static BOOL screenIsLocked(void) {
+    if (sessionLocked) return YES;
+    if (CFAbsoluteTimeGetCurrent() - unlockedAt < 5) return YES;
+    CFDictionaryRef session = CGSessionCopyCurrentDictionary();
+    if (!session) return YES;
+    NSDictionary *d = (__bridge NSDictionary *)session;
+    BOOL locked = [d[@"CGSSessionScreenIsLocked"] boolValue] || ![d[(id)kCGSessionOnConsoleKey] boolValue];
+    CFRelease(session);
+    return locked;
+}
+
+static BOOL systemSpreadUp(NSArray *windows) {
+    for (NSDictionary *window in windows) {
+        NSString *owner = window[(id)kCGWindowOwnerName] ?: @"";
+        if (![owner isEqualToString:@"Dock"] && ![owner isEqualToString:@"WindowManager"]) continue;
+        CGRect rect = windowRect(window);
+        if (rect.size.width < 160 || rect.size.height < 160) continue;
+        if ([owner isEqualToString:@"WindowManager"] && [window[(id)kCGWindowLayer] intValue] < 0) continue;
+        return YES;
+    }
+    return NO;
+}
+
+static NSString *runTool(NSString *path, NSArray<NSString *> *args, int *status) {
+    NSTask *task = [NSTask new];
+    task.executableURL = [NSURL fileURLWithPath:path];
+    task.arguments = args;
+    NSPipe *pipe = [NSPipe pipe];
+    task.standardOutput = pipe;
+    task.standardError = [NSPipe pipe];
+    if (![task launchAndReturnError:nil]) {
+        if (status) *status = -1;
+        return nil;
+    }
+    NSData *data = [pipe.fileHandleForReading readDataToEndOfFile];
+    [task waitUntilExit];
+    if (status) *status = task.terminationStatus;
+    return [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding] ?: @"";
+}
+
+// The bar treats any of these processes as a running screensaver and
+// hides on every display. Once the loop outlived its Ghostty window: no
+// terminal, 86% CPU, and the bar stayed hidden until it was killed. A
+// screensaver with no terminal and no window for 10 s is ended here.
+static CFAbsoluteTime orphanSince = 0;
+static CFAbsoluteTime orphanCheckedAt = 0;
+
+// Only the loop script itself or the Ghostty running its config. Anything
+// else that merely names the script still hides the bar, but is not ours
+// to end.
+static BOOL isSaverProcess(NSArray<NSString *> *argv) {
+    NSString *exe = argv.firstObject ?: @"";
+    if ([exe hasSuffix:@"/omacosy-screensaver"]) return YES;
+    NSString *name = exe.lastPathComponent;
+    if (argv.count > 1 && ([name isEqualToString:@"bash"] || [name isEqualToString:@"sh"]))
+        return [argv[1] hasSuffix:@"/omacosy-screensaver"];
+    if ([name.lowercaseString isEqualToString:@"ghostty"])
+        return [[argv componentsJoinedByString:@" "] containsString:@"ghostty-screensaver.conf"];
+    return NO;
+}
+
+static BOOL screensaverWindowListed(void) {
+    int status = 0;
+    NSString *out = runTool(@"/opt/homebrew/bin/aerospace",
+                            @[@"list-windows", @"--all", @"--format", @"%{window-title}"], &status);
+    if (!out || status != 0) return YES;
+    return [out containsString:@"omacosy-screensaver"];
+}
+
+static BOOL screensaverUp(void) {
+    NSString *text = runTool(@"/bin/ps", @[@"-axo", @"pid=,tty=,command="], NULL);
+    if (!text) return YES;
+    NSRegularExpression *re = [NSRegularExpression regularExpressionWithPattern:@"/omacosy-screensaver(\\s|$)" options:0 error:nil];
+    NSMutableArray<NSNumber *> *pids = [NSMutableArray array];
+    BOOL attached = NO, foreign = NO;
+    for (NSString *raw in [text componentsSeparatedByString:@"\n"]) {
+        NSString *line = [raw stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet];
+        if ([line containsString:@"omacosy-screensaver-idle"]) continue;
+        if ([line containsString:@"omacosy-launch-screensaver"]) continue;
+        BOOL ghostty = [line containsString:@"ghostty-screensaver.conf"];
+        BOOL loop = [re firstMatchInString:line options:0 range:NSMakeRange(0, line.length)] != nil;
+        if (!ghostty && !loop) continue;
+        NSArray *f = [line componentsSeparatedByCharactersInSet:NSCharacterSet.whitespaceCharacterSet];
+        f = [f filteredArrayUsingPredicate:[NSPredicate predicateWithFormat:@"length > 0"]];
+        if (f.count < 3) return YES;
+        if (!isSaverProcess([f subarrayWithRange:NSMakeRange(2, f.count - 2)])) {
+            foreign = YES;
+            continue;
+        }
+        [pids addObject:@([f[0] intValue])];
+        if (loop && ![f[1] isEqualToString:@"??"]) attached = YES;
+    }
+    CFAbsoluteTime now = CFAbsoluteTimeGetCurrent();
+    if (now - orphanCheckedAt > 3) orphanSince = 0;
+    orphanCheckedAt = now;
+    if (pids.count == 0) {
+        orphanSince = 0;
+        return foreign;
+    }
+    if (attached || screensaverWindowListed()) {
+        orphanSince = 0;
+        return YES;
+    }
+    if (orphanSince == 0) orphanSince = now;
+    if (now - orphanSince < 10) return YES;
+    for (NSNumber *pid in pids) {
+        if (pid.intValue > 1) kill(pid.intValue, SIGTERM);
+    }
+    orphanSince = 0;
+    logLine([NSString stringWithFormat:@"ended screensaver left without a window (%@)",
+             [pids componentsJoinedByString:@","]]);
+    return foreign;
+}
+
+static NSScreen *screenForDisplay(CGDirectDisplayID display) {
+    for (NSScreen *screen in NSScreen.screens) {
+        NSNumber *n = screen.deviceDescription[@"NSScreenNumber"];
+        if (n.unsignedIntValue == display) return screen;
+    }
+    return nil;
+}
+
+// The bar only draws on displays AeroSpace lists by name. A display it
+// does not list has no bar on purpose, and a restart would not add one.
+static BOOL aerospaceListsScreen(NSScreen *screen) {
+    if (!screen) return NO;
+    NSTask *task = [NSTask new];
+    task.executableURL = [NSURL fileURLWithPath:@"/opt/homebrew/bin/aerospace"];
+    task.arguments = @[@"list-monitors", @"--format", @"%{monitor-name}"];
+    NSPipe *pipe = [NSPipe pipe];
+    task.standardOutput = pipe;
+    task.standardError = [NSPipe pipe];
+    if (![task launchAndReturnError:nil]) return NO;
+    NSData *data = [pipe.fileHandleForReading readDataToEndOfFile];
+    [task waitUntilExit];
+    if (task.terminationStatus != 0) return NO;
+    NSString *out = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding] ?: @"";
+    for (NSString *line in [out componentsSeparatedByString:@"\n"]) {
+        if ([line isEqualToString:screen.localizedName]) return YES;
+    }
+    return NO;
+}
+
+// Same test as fullscreenDisplays() in bar.swift: a flush full-width
+// window, or a browser page under its fullscreen toolbar.
+static BOOL displayCoveredByFullscreen(CGRect display, NSScreen *screen, NSArray *windows) {
+    CGFloat inset = screen ? screen.safeAreaInsets.top : 0;
+    for (NSDictionary *window in windows) {
+        if ([window[(id)kCGWindowLayer] intValue] != 0) continue;
+        CGRect rect = windowRect(window);
+        if (rect.size.width < 1 || rect.size.height < 1) continue;
+        if (!CGRectIntersectsRect(display, rect)) continue;
+        CGFloat top = rect.origin.y - display.origin.y;
+        BOOL fullWidth = rect.size.width >= display.size.width - 2
+            && fabs(CGRectGetMinX(rect) - CGRectGetMinX(display)) < 4;
+        BOOL flush = top < inset + 3 && rect.size.height >= display.size.height - inset - 6 && fullWidth;
+        if (flush || chromePage(rect, display)) return YES;
+    }
+    return NO;
+}
+
+static BOOL barShownOnDisplay(CGRect display, NSArray *windows) {
+    for (NSDictionary *window in windows) {
+        if (![window[(id)kCGWindowOwnerName] isEqualToString:@"omacosy-bar"]) continue;
+        if ([window[(id)kCGWindowAlpha] doubleValue] < 0.05) continue;
+        CGRect rect = windowRect(window);
+        if (rect.size.height > 80) continue;
+        if (!CGRectContainsPoint(display, CGPointMake(CGRectGetMidX(rect), CGRectGetMidY(rect)))) continue;
+        if (rect.origin.y - display.origin.y > 40) continue;
+        return YES;
+    }
+    return NO;
+}
+
+static BOOL mayKickBar(void) {
+    NSDate *now = [NSDate date];
+    NSMutableArray *recent = [NSMutableArray array];
+    for (NSDate *at in barKicks) {
+        if ([now timeIntervalSinceDate:at] < 600) [recent addObject:at];
+    }
+    barKicks = recent;
+    if (recent.count >= 3) return NO;
+    NSDate *last = recent.lastObject;
+    return !last || [now timeIntervalSinceDate:last] >= 20;
+}
+
+static void kickBar(NSString *why) {
+    NSTask *task = [NSTask new];
+    task.executableURL = [NSURL fileURLWithPath:@"/bin/launchctl"];
+    task.arguments = @[@"kickstart", @"-k", [NSString stringWithFormat:@"gui/%u/com.omacosy.bar", getuid()]];
+    task.standardOutput = [NSPipe pipe];
+    task.standardError = [NSPipe pipe];
+    if (![task launchAndReturnError:nil]) return;
+    [task waitUntilExit];
+    [barKicks addObject:[NSDate date]];
+    [applied removeAllObjects];
+    [missingSince removeAllObjects];
+    logLine([NSString stringWithFormat:@"bar restart (%@) rc=%d", why, task.terminationStatus]);
+}
+
+static void watchBarPresence(void) {
+    if (exposeHeld() || screenIsLocked()) {
+        [missingSince removeAllObjects];
+        return;
+    }
+    CFArrayRef all = CGWindowListCopyWindowInfo(kCGWindowListOptionAll, kCGNullWindowID);
+    CFArrayRef shown = CGWindowListCopyWindowInfo(kCGWindowListOptionOnScreenOnly, kCGNullWindowID);
+    NSArray *allWindows = all ? (__bridge_transfer NSArray *)all : @[];
+    NSArray *onScreen = shown ? (__bridge_transfer NSArray *)shown : @[];
+    BOOL barAlive = NO;
+    for (NSDictionary *window in allWindows) {
+        if ([window[(id)kCGWindowOwnerName] isEqualToString:@"omacosy-bar"]) { barAlive = YES; break; }
+    }
+    // No bar windows at all is launchd's job (KeepAlive); an empty
+    // on-screen list is a failed read, not a missing bar.
+    if (!barAlive || onScreen.count == 0 || systemSpreadUp(onScreen)) {
+        [missingSince removeAllObjects];
+        return;
+    }
+    uint32_t ids[8] = {0};
+    uint32_t count = 0;
+    if (CGGetActiveDisplayList(8, ids, &count) != kCGErrorSuccess) return;
+    CFAbsoluteTime now = CFAbsoluteTimeGetCurrent();
+    NSMutableSet *seen = [NSMutableSet set];
+    CGDirectDisplayID overdue = 0;
+    for (uint32_t i = 0; i < count; i++) {
+        CGDirectDisplayID display = ids[i];
+        NSNumber *key = @(display);
+        [seen addObject:key];
+        CGRect bounds = CGDisplayBounds(display);
+        NSScreen *screen = screenForDisplay(display);
+        if (CGDisplayIsAsleep(display) || !screen
+            || barShownOnDisplay(bounds, onScreen)
+            || displayCoveredByFullscreen(bounds, screen, onScreen)) {
+            [missingSince removeObjectForKey:key];
+            continue;
+        }
+        if (!missingSince[key]) {
+            missingSince[key] = @(now);
+            continue;
+        }
+        if (now - missingSince[key].doubleValue >= kMissingGraceSeconds && !overdue) overdue = display;
+    }
+    for (NSNumber *key in missingSince.allKeys) {
+        if (![seen containsObject:key]) [missingSince removeObjectForKey:key];
+    }
+    if (!overdue) return;
+    NSScreen *screen = screenForDisplay(overdue);
+    if (screensaverUp()) {
+        // Recheck every 2 s so a leftover screensaver is ended on time.
+        missingSince[@(overdue)] = @(now - kMissingGraceSeconds + 2);
+        return;
+    }
+    if (!mayKickBar()) return;
+    if (!aerospaceListsScreen(screen)) {
+        missingSince[@(overdue)] = @(now);
+        return;
+    }
+    kickBar([NSString stringWithFormat:@"no bar on %@ for %ds", screen.localizedName, kMissingGraceSeconds]);
+}
+
 int main(int argc, char **argv) {
     @autoreleasepool {
         checkOnly = argc > 1 && strcmp(argv[1], "--check") == 0;
@@ -278,12 +553,28 @@ int main(int argc, char **argv) {
         [NSApplication sharedApplication];
         if (checkOnly) {
             apply();
+            CFArrayRef shown = CGWindowListCopyWindowInfo(kCGWindowListOptionOnScreenOnly, kCGNullWindowID);
+            NSArray *onScreen = shown ? (__bridge_transfer NSArray *)shown : @[];
+            printf("watch: locked=%d expose=%d spread=%d screensaver=%d\n",
+                   screenIsLocked(), exposeHeld(), systemSpreadUp(onScreen), screensaverUp());
+            uint32_t ids[8] = {0};
+            uint32_t count = 0;
+            CGGetActiveDisplayList(8, ids, &count);
+            for (uint32_t i = 0; i < count; i++) {
+                CGRect bounds = CGDisplayBounds(ids[i]);
+                NSScreen *screen = screenForDisplay(ids[i]);
+                printf("watch: display=%u %s asleep=%d bar=%d fullscreen=%d listed=%d\n", ids[i],
+                       screen.localizedName.UTF8String ?: "?", CGDisplayIsAsleep(ids[i]),
+                       barShownOnDisplay(bounds, onScreen), displayCoveredByFullscreen(bounds, screen, onScreen),
+                       aerospaceListsScreen(screen));
+            }
             return 0;
         }
         logLine(@"watch start");
         [[[NSWorkspace sharedWorkspace] notificationCenter] addObserverForName:NSWorkspaceDidWakeNotification
                                                                         object:nil queue:nil
                                                                     usingBlock:^(__unused NSNotification *note) {
+            unlockedAt = CFAbsoluteTimeGetCurrent();
             scheduleGapRetune();
         }];
         [[NSNotificationCenter defaultCenter] addObserverForName:NSApplicationDidChangeScreenParametersNotification
@@ -297,6 +588,21 @@ int main(int argc, char **argv) {
         }];
         [NSTimer scheduledTimerWithTimeInterval:0.1 repeats:YES block:^(__unused NSTimer *t) {
             apply();
+        }];
+        missingSince = [NSMutableDictionary dictionary];
+        barKicks = [NSMutableArray array];
+        NSDistributedNotificationCenter *dnc = NSDistributedNotificationCenter.defaultCenter;
+        [dnc addObserverForName:@"com.apple.screenIsLocked" object:nil queue:nil
+                     usingBlock:^(__unused NSNotification *note) {
+            sessionLocked = YES;
+        }];
+        [dnc addObserverForName:@"com.apple.screenIsUnlocked" object:nil queue:nil
+                     usingBlock:^(__unused NSNotification *note) {
+            sessionLocked = NO;
+            unlockedAt = CFAbsoluteTimeGetCurrent();
+        }];
+        [NSTimer scheduledTimerWithTimeInterval:1.0 repeats:YES block:^(__unused NSTimer *t) {
+            watchBarPresence();
         }];
         [[NSRunLoop currentRunLoop] run];
     }

@@ -158,6 +158,15 @@ while true; do
     sleep 1
     continue
   fi
+  # ss-launched outlives the saver. Left behind, the next process that
+  # looks like a saver counts as one running past DISPLAY_OFF, and the
+  # screen is locked and turned off on the spot.
+  if [ -f "$STATE/ss-launched" ] && ! screensaver_running; then
+    launched=$(launched_at)
+    if [ $(($(date +%s) - ${launched:-0})) -ge 10 ]; then
+      rm -f "$STATE/ss-launched"
+    fi
+  fi
   if screensaver_running; then
     launched=$(launched_at)
     launched=${launched:-0}
@@ -177,6 +186,7 @@ while true; do
       echo "$(date) skip media idle=${idle} ${media_line}" >>"$LOG"
     elif ! screensaver_running && [ -x "$LAUNCH" ]; then
       echo "$(date) launch idle=${idle} limit=${LIMIT}" >>"$LOG"
+      rm -f "$STATE/ss-locked-for-launch"
       start_caffeine
       "$LAUNCH" >>"$LOG" 2>&1 || true
     fi
@@ -199,7 +209,12 @@ while true; do
     now=$(date +%s)
     if [ $((now - launched)) -ge 4 ]; then
       echo "$(date) stop idle=${idle}" >>"$LOG"
-      lock_after_saver
+      # One lock per screensaver. Calling lock again after the password
+      # succeeds sends the session straight back to the lock screen.
+      if [ ! -f "$STATE/ss-locked-for-launch" ]; then
+        lock_after_saver
+        touch "$STATE/ss-locked-for-launch"
+      fi
       stop_screensaver
     fi
   fi

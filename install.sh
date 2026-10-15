@@ -440,7 +440,7 @@ launchctl load "$HOME/Library/LaunchAgents/com.omacosy.dock.plist"
 CHROME_BIN="$HOME/.local/bin/omacosy-bar-chrome"
 if [ ! -x "$CHROME_BIN" ] || [ "$REPO_DIR/helper/bar-chrome.m" -nt "$CHROME_BIN" ]; then
   log "Building omacosy-bar-chrome"
-  clang -fobjc-arc -framework Foundation -framework CoreGraphics \
+  clang -fobjc-arc -O2 -framework Foundation -framework CoreGraphics -framework AppKit \
     -F /System/Library/PrivateFrameworks -framework SkyLight \
     -o "$CHROME_BIN" "$REPO_DIR/helper/bar-chrome.m"
 fi

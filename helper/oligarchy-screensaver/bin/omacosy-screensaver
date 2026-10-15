@@ -114,7 +114,15 @@ on_winch() {
 trap on_winch WINCH
 
 reuse=()
+fast_exits=0
 while true; do
+  # Without its window this loop has no terminal. read then returns at
+  # once, tte dies at once, and the loop spins at full CPU. The bar
+  # counts this process as a running screensaver and hides on every
+  # display while it lives.
+  if [ "$(ps -o tty= -p $$ 2>/dev/null | tr -d ' ')" = "??" ]; then
+    exit_screensaver
+  fi
   if [ -z "$current" ]; then
     if [ "${#bag[@]}" -eq 0 ]; then
       refill_bag
@@ -140,8 +148,13 @@ while true; do
   TPID=$!
   reuse=(--reuse-canvas)
   echo "$(date) start effect=$current stty=$(stty size 2>/dev/null)" >>"$LOG"
+  started=$SECONDS
   while kill -0 "$TPID" 2>/dev/null; do
-    if read -r -n1 -t 1; then
+    rc=0
+    read -r -n1 -t 1 || rc=$?
+    # 0 is a key press. 1..128 is end of input: the terminal is gone.
+    # Above 128 is the one-second timeout.
+    if [ "$rc" -le 128 ]; then
       trap - EXIT
       exit_screensaver
     fi
@@ -150,6 +163,15 @@ while true; do
   if [ "$winched" -eq 1 ]; then
     winched=0
     continue
+  fi
+  if [ $((SECONDS - started)) -lt 1 ]; then
+    fast_exits=$((fast_exits + 1))
+    if [ "$fast_exits" -ge 5 ]; then
+      echo "$(date) $TTE keeps exiting at once, stopping" >>"$LOG"
+      exit_screensaver
+    fi
+  else
+    fast_exits=0
   fi
   current=""
 done
