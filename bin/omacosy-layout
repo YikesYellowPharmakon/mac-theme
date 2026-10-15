@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# omacosy-layout <resize <±N>|togglesplit> — Super+-/=/J, wrapper-aware.
+# omacosy-layout — Super+-/=/J/T/F and the resize mode, wrapper-aware.
 #
 # The dwindle split hint pre-splits the focused window so the NEXT
 # window lands in the right half (see helper/main.swift split-hint).
@@ -40,8 +40,58 @@ togglesplit)
   fi
   exec "$A" layout tiles horizontal vertical
   ;;
+resize-axis)
+  # Resize mode asks for one axis. Height (and sometimes width) no-ops
+  # while the split hint's wrapper is the parent. Dissolve that wrapper
+  # only after the direct resize fails, then try the axis once more.
+  axis="${2:?usage: omacosy-layout resize-axis <width|height> <+N|-N>}"
+  N="${3:?usage: omacosy-layout resize-axis <width|height> <+N|-N>}"
+  case "$axis" in width|height) ;; *) exit 1 ;; esac
+  "$A" resize "$axis" "$N" 2>/dev/null && exit 0
+  STATE="/tmp/omacosy-split-state-$(id -u)"
+  WID="$("$A" list-windows --focused --format '%{window-id}' 2>/dev/null)"
+  if [ -n "$WID" ] && [ -f "$STATE" ] && [ "$(cut -d' ' -f1 "$STATE")" = "$WID" ]; then
+    "$A" layout floating --window-id "$WID" 2>/dev/null || true
+    "$A" layout tiling --window-id "$WID" 2>/dev/null || true
+  fi
+  exec "$A" resize "$axis" "$N"
+  ;;
+togglefloat)
+  # Stamp before the layout change. on-focus-changed runs arrange, and
+  # arrange would otherwise tile this window straight back.
+  WID="$("$A" list-windows --focused --format '%{window-id}' 2>/dev/null)"
+  LAY="$("$A" list-windows --focused --format '%{window-layout}' 2>/dev/null)"
+  [ -n "$WID" ] || exit 0
+  FLOAT="/tmp/omacosy-user-float-$(id -u)"
+  FULL="/tmp/omacosy-user-full-$(id -u)"
+  mkdir -p "$FLOAT" "$FULL"
+  if [ "$LAY" = "floating" ]; then
+    rm -f "$FLOAT/$WID"
+    "$A" layout tiling --window-id "$WID"
+  else
+    rm -f "$FULL/$WID"
+    : > "$FLOAT/$WID"
+    "$A" layout floating --window-id "$WID"
+  fi
+  ;;
+togglefull)
+  WID="$("$A" list-windows --focused --format '%{window-id}' 2>/dev/null)"
+  LAY="$("$A" list-windows --focused --format '%{window-layout}' 2>/dev/null)"
+  [ -n "$WID" ] || exit 0
+  FLOAT="/tmp/omacosy-user-float-$(id -u)"
+  FULL="/tmp/omacosy-user-full-$(id -u)"
+  mkdir -p "$FLOAT" "$FULL"
+  if [ "$LAY" = "fullscreen" ]; then
+    rm -f "$FULL/$WID"
+    "$A" fullscreen off --window-id "$WID"
+  else
+    rm -f "$FLOAT/$WID"
+    : > "$FULL/$WID"
+    "$A" fullscreen on --window-id "$WID" --no-outer-gaps
+  fi
+  ;;
 *)
-  echo "usage: omacosy-layout <resize <±N>|togglesplit>" >&2
+  echo "usage: omacosy-layout <resize <±N>|resize-axis <width|height> <±N>|togglesplit|togglefloat|togglefull>" >&2
   exit 1
   ;;
 esac

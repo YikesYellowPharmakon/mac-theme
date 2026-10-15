@@ -108,8 +108,10 @@ run = 'exec-and-forget $HOME/.local/bin/omacosy-arrange --new'
 alt-enter = 'exec-and-forget $HOME/.local/bin/omacosy-spawn "@TERMINAL@"'
 alt-shift-enter = 'exec-and-forget open -a "@BROWSER@"'
 
-# Launcher (omarchy: Super+Space). Cmd+Space stays Spotlight.
-alt-space = 'exec-and-forget /usr/bin/open -a Spotlight'
+# Launcher (omarchy: Super+Space). Cmd+Space stays the system search.
+# Spotlight.app cannot be spawned (launchd 162). This opens
+# Searching This Mac, the system file search.
+alt-space = 'exec-and-forget $HOME/.local/bin/omacosy-spotlight'
 
 # Close window (omarchy: Super+W / Super+Q). Cmd+W stays close-tab.
 alt-w = 'close'
@@ -122,17 +124,22 @@ alt-down = 'focus down'
 alt-up = 'focus up'
 alt-right = 'focus right'
 
-# Move windows (omarchy: Super+Shift+Arrows)
-alt-shift-left = 'move left'
-alt-shift-down = 'move down'
-alt-shift-up = 'move up'
-alt-shift-right = 'move right'
+# Move windows (omarchy: Super+Shift+Arrows).
+# `move` uses the focused window's parent. The dwindle hint wraps that
+# window in a one-child container, and `move` then slots it beside the
+# empty wrapper, so the window stays put. The next press works, until
+# the next focus wraps it again. `swap` exchanges with the neighbor in
+# that direction and is not thrown off by the wrapper.
+alt-shift-left = 'swap left'
+alt-shift-down = 'swap down'
+alt-shift-up = 'swap up'
+alt-shift-right = 'swap right'
 
 # Layout (omarchy: Super+T float, Super+J split, Super+F fullscreen)
-alt-t = 'layout floating tiling'
+alt-t = 'exec-and-forget $HOME/.local/bin/omacosy-layout togglefloat'
 alt-s = 'exec-and-forget $HOME/.local/bin/omacosy-float'
 alt-j = 'exec-and-forget $HOME/.local/bin/omacosy-layout togglesplit'
-alt-f = 'fullscreen --no-outer-gaps'
+alt-f = 'exec-and-forget $HOME/.local/bin/omacosy-layout togglefull'
 # native (green-button) fullscreen: a separate Space. Hover the top
 # edge to get the auto-hidden menu bar and the traffic lights.
 alt-n = 'macos-native-fullscreen'
@@ -201,12 +208,12 @@ alt-r = 'mode resize'
 alt-shift-semicolon = 'mode service'
 
 [mode.resize.binding]
-h = 'resize width -50'
-j = 'resize height +50'
-k = 'resize height -50'
-l = 'resize width +50'
-minus = 'resize smart -50'
-equal = 'resize smart +50'
+h = 'exec-and-forget $HOME/.local/bin/omacosy-layout resize-axis width -50'
+j = 'exec-and-forget $HOME/.local/bin/omacosy-layout resize-axis height +50'
+k = 'exec-and-forget $HOME/.local/bin/omacosy-layout resize-axis height -50'
+l = 'exec-and-forget $HOME/.local/bin/omacosy-layout resize-axis width +50'
+minus = 'exec-and-forget $HOME/.local/bin/omacosy-layout resize -50'
+equal = 'exec-and-forget $HOME/.local/bin/omacosy-layout resize +50'
 enter = 'mode main'
 esc = 'mode main'
 

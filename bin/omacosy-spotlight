@@ -1,0 +1,14 @@
+#!/usr/bin/env python3
+# ⌥Space. LaunchServices refuses to spawn Spotlight.app (POSIX 162); the
+# panel lives in the Dock. Command-Space on this Mac is answered by Siri
+# when it is synthesized, so this opens the system "Searching This Mac"
+# window, which is the Spotlight file search (Command-Option-Space).
+import subprocess
+
+subprocess.call(
+    [
+        "osascript",
+        "-e",
+        'tell application "System Events" to key code 49 using {command down, option down}',
+    ]
+)
