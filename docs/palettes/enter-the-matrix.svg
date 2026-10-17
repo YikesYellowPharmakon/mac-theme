@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="88" viewBox="0 0 720 88">
+  <rect width="720" height="88" fill="#131610"/>
+  <text x="16" y="22" fill="#93B298" font-family="ui-monospace, SF Mono, Menlo, monospace" font-size="13">enter-the-matrix</text>
+  <text x="16" y="40" fill="#7BAE4E" font-family="ui-monospace, SF Mono, Menlo, monospace" font-size="11">accent #7BAE4E · phosphor green, no red/blue leftover</text>
+  <rect x="16" y="52" width="80" height="24" rx="4" fill="#131610" stroke="#7BAE4E"/>
+  <rect x="104" y="52" width="80" height="24" rx="4" fill="#7BAE4E"/>
+  <rect x="192" y="52" width="80" height="24" rx="4" fill="#93B298"/>
+  <rect x="280" y="52" width="80" height="24" rx="4" fill="#A8BE5A"/>
+  <rect x="368" y="52" width="80" height="24" rx="4" fill="#5B8CA8"/>
+  <rect x="456" y="52" width="80" height="24" rx="4" fill="#4CAF7E"/>
+  <rect x="544" y="52" width="80" height="24" rx="4" fill="#33482F"/>
+  <rect x="632" y="52" width="72" height="24" rx="4" fill="#E5484D"/>
+</svg>

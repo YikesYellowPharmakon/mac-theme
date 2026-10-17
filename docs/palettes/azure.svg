@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="88" viewBox="0 0 720 88">
+  <rect width="720" height="88" fill="#182538"/>
+  <text x="16" y="22" fill="#eff3f8" font-family="ui-monospace, SF Mono, Menlo, monospace" font-size="13">azure</text>
+  <text x="16" y="40" fill="#8da1c8" font-family="ui-monospace, SF Mono, Menlo, monospace" font-size="11">accent #8da1c8 · paper over navy</text>
+  <rect x="16" y="52" width="80" height="24" rx="4" fill="#182538" stroke="#8da1c8"/>
+  <rect x="104" y="52" width="80" height="24" rx="4" fill="#8da1c8"/>
+  <rect x="192" y="52" width="80" height="24" rx="4" fill="#eff3f8"/>
+  <rect x="280" y="52" width="80" height="24" rx="4" fill="#61a7d6"/>
+  <rect x="368" y="52" width="80" height="24" rx="4" fill="#5693C4"/>
+  <rect x="456" y="52" width="80" height="24" rx="4" fill="#a0adc5"/>
+  <rect x="544" y="52" width="80" height="24" rx="4" fill="#49586d"/>
+  <rect x="632" y="52" width="72" height="24" rx="4" fill="#cad4e7"/>
+</svg>

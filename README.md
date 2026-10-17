@@ -1,602 +1,247 @@
 # omacosy
 
-> This is a personal customization of [omacosy](https://github.com/paulsp94/omacosy) by [paulsp94](https://github.com/paulsp94). The original project is inspired by [omarchy](https://omarchy.org). Please star and support the upstream repo.
->
-> **Known limit:** macOS Sequoia's green-button hover/long-press tiling menu cannot be disabled or made to match this rice's auto-arrange. Use Option chords for layout; leave the green button as the system fullscreen / Split View hatch.
+A personal tiling Mac: AeroSpace, a themed bar and dock, five palettes
+that recolor the whole session, Super as Option so Command still means
+macOS.
 
-## What this fork changes
+Forked from [paulsp94/omacosy](https://github.com/paulsp94/omacosy)
+(omarchy-style rice for macOS). Daily-driven on an M1 MacBook Air,
+macOS 26, SIP on.
 
-On top of upstream's tiling desktop, this machine is tuned to stay a normal Mac instead of a second Linux shell:
+![Desktop — themed bar over the wallpaper](docs/screenshots/desktop.jpg)
 
-- **Super is Option.** Command still does copy, paste, and app switching. Caps Lock stays Caps Lock for the Chinese IME — it is not remapped to Hyper.
-- **Spotlight is `Cmd-Space` and `Option-Space`.** Raycast is not installed.
-- **Default apps** in `config/apps.conf`: Ghostty, Google Chrome, NetEase Cloud Music, ChatGPT (`Option-Return` / `Option-Shift-Return` / `M` / `G`).
-- **Themes:** azure, enter-the-matrix, no-bad-memories, snow-black, space-monkey. Pick one from the bar; the last accent color per theme is remembered. The only extra in the Apple menu is Theme.
-- **Screensaver:** Ghostty + ttfx on the main display only, 120 fps, shuffle-bag so an effect does not repeat until every effect in the set has played. Idle 5 minutes to start, 7 more minutes then display-off and lock. No desktop rain. External screens stay dark covers, not a second saver.
-- **Cheatsheet:** icon-only control on the left of the bar, `Option-K` to toggle. The sheet fits the screen (3 / 2 / 1 columns) instead of drawing off the edge.
-- **Sequoia plugin guard:** `omacosy-pkd-guard` runs at login and every 5 minutes. If System Settings panes or the iCloud Drive file provider drop out of pluginkit, it only re-adds the matching `/System` appexes. Not resident, no GPU.
-- **SIP stays on.** Ice, SketchyBar, and JankyBorders are not reinstalled.
-- **Known limit — Sequoia green button.** Layout is `omacosy-arrange` (one tiled window in the usable area, two left/right, three+ dwindle). Sequoia's green-button hover/long-press tiling menu has no supported off switch, and its tiles follow the system `visibleFrame`, not the omacosy bar + `outer.top`. Intercepting that button was tried and withdrawn: the picker is a separate Window Manager UI, and routing the click into native fullscreen left new windows filling the screen or stuck on the left. This fork does not intercept it. The green button stays the system fullscreen / Split View hatch — do not use it to arrange.
+Same tree is also published as
+[omacosy-standalone](https://github.com/YikesYellowPharmakon/omacosy-standalone)
+and [mac-theme](https://github.com/YikesYellowPharmakon/mac-theme).
 
-Full chord list: [`docs/omacosy-键位设置.html`](docs/omacosy-键位设置.html).
+**Known limit.** Sequoia's green-button hover tiling cannot be turned
+off and does not match this rice's usable area. Use Option chords to
+arrange. Leave the green button as the system fullscreen / Split View
+hatch.
 
----
+## What you get
 
-omakase + macOS + cosy. An [omarchy](https://omarchy.org)-style setup
-for macOS: tiling window management with a real Super key and
-Hyprland's dwindle layout, a status bar built for it (bar, popups,
-sliders and screen dimming in one process), focus follows mouse,
-trackpad workspace swipes, a Mission-Control-style workspace overview
-with live previews, focused-window border rings, and one theme switch
-that covers everything down to the wallpaper. All of it installs from
-this one repo.
+- **Tiling that stays a Mac.** One window fills the usable area (gaps,
+  not edge-to-edge). Two sit left/right. Three and up dwindle: a new
+  window splits the focused pane along its longer edge.
+- **Super is Option.** Copy, paste, tabs, `Cmd-Tab`, `Cmd-Space` stay
+  Command. Caps Lock stays Caps Lock for the Chinese IME.
+- **One theme switch.** `Option-Shift-T` (or the Apple menu → Theme)
+  recolors the bar, dock, borders, Ghostty, Neovim, btop, and the
+  wallpaper on every display. `Option-Shift-B` walks that theme's
+  wallpapers. Each theme remembers the last accent and wallpaper.
+- **Hide stays put.** `Cmd-H` parks the app's windows on a hidden
+  workspace instead of handing focus to whatever you used last, so the
+  desktop does not jump. Click the dock icon or `Cmd-Tab` to bring
+  them back to the workspace you are on.
+- **Bar, dock, overview, screensaver** are all themed. The native menu
+  bar stays hidden; the native Dock stays buried. Hover the bottom
+  edge for the capsule dock. Four-finger swipe for workspaces and
+  overview.
 
-![The omacosy desktop — themed bar over the osaka-jade wallpaper](docs/screenshots/desktop.jpg)
+Default apps (`config/apps.conf`): Ghostty, Google Chrome, NetEase
+Cloud Music, ChatGPT.
 
-The whole environment idles at about **157MB** of memory. Numbers per
-process in [Memory use](#memory-use).
+Full chord list: [`docs/omacosy-键位设置.html`](docs/omacosy-键位设置.html)
+(`Option-K` on the machine).
 
-Most of it is seven small signed binaries (Swift and C) built by the installer,
-because several of the existing tools are broken on macOS 26. The
-details are under [What's inside](#whats-inside).
+## Themes
 
-> Built for macOS 26 (Tahoe) on one desk: a MacBook Pro plus one
-> external display. It tries to generalize (display roles instead of
-> hardware names, per-display notch detection), but so far it has only
-> run on this machine. The permission setup is real work. Issues and
-> PRs welcome; support promises are not made.
+Five palettes. One switch paints the bar pills, the dock icons
+(including Ghostty's), the window ring, terminals, Neovim, and the
+lock screen (same wallpaper as the desktop).
 
-## Fresh Mac
+| Theme | Feel | Accent |
+|---|---|---|
+| **azure** | paper over navy | `#8da1c8` |
+| **enter-the-matrix** | phosphor green, no leftover red/blue | `#7BAE4E` |
+| **no-bad-memories** | lacquer red on violet; wallpaper is local, not in git | `#E5281A` |
+| **snow-black** | white on black, gray ring | `#888888` |
+| **space-monkey** | rust and amber | `#bd4924` |
+
+![azure](docs/palettes/azure.svg)
+![enter-the-matrix](docs/palettes/enter-the-matrix.svg)
+![no-bad-memories](docs/palettes/no-bad-memories.svg)
+![snow-black](docs/palettes/snow-black.svg)
+![space-monkey](docs/palettes/space-monkey.svg)
+
+What a theme actually recolors:
+
+- **Bar:** workspace chips (digit, or the sole app's icon), Apple
+  menu, weather / wifi / bluetooth / brightness / volume / battery /
+  clock / activity, every popup.
+- **Dock:** app icons, including a per-theme Ghostty icon written to
+  `~/.local/state/omacosy/ghostty-icon.png`.
+- **Windows:** focus ring (`omacosy-borders`), AeroSpace gaps.
+- **Terminal:** Ghostty palette, cursor shaders (idle work skipped so
+  typing does not stutter), Neovim cursor pulse.
+- **Lock screen:** same wallpaper as the desktop.
+
+`no-bad-memories` samples its palette from the MV / album art. That
+wallpaper lives under `themes/no-bad-memories/backgrounds/` and is
+gitignored.
+
+## Layout and workspaces
+
+![Three terminals in a dwindle — README, git log, btop](docs/screenshots/tiling.jpg)
+
+Each display owns nine workspaces: main 1–9, external 11–19. Same last
+digit is the same slot. `Option-N` switches this display's slot N;
+`Option-Shift-N` moves the window and follows it. Unplug the external
+display and occupied 11–19 fold into free 1–9 slots; plug it back and
+they go home.
+
+Workspace chips on the bar count **windows**, not apps: one visible
+window shows that app's icon; more than one, or none (minimized /
+hidden / parked), shows the digit.
+
+Fullscreen:
+
+- `Option-F` — AeroSpace fill on this workspace. The bar hides; hover
+  the top edge to get it back.
+- `Option-N` — native macOS fullscreen (its own Space), same as the
+  green button.
+
+Clicking a hidden app in the dock while the current workspace is
+native-fullscreen opens that app alone on an empty workspace and
+switches there, instead of shoving it into the fullscreen Space.
+
+## Bar, dock, overview
+
+The bar is one process: pills, popups, sliders, and a gamma shade that
+dims past hardware zero (no overlay in the z-order, so screenshots
+stay clean). The Apple menu is the real one, read over Accessibility.
+The native menu bar stays buried except in native fullscreen.
+
+The dock is a bottom-edge capsule. Click an app to open it, jump to
+its window, or cycle its windows. Right-click is Open / Options / Hide
+/ Quit (Option for Force Quit). Hide uses the same parking path as
+`Cmd-H`.
+
+![Workspace overview](docs/screenshots/overview.jpg)
+
+Four-finger left/right switches workspaces on the display under the
+cursor (empty ones included, wrap-around). Swipe up is the overview:
+live preview cards, type-to-search, drag to reorder. Swipe down or Esc
+closes it. The parking workspace never appears as a card.
+
+![Keybinding cheatsheet](docs/screenshots/cheatsheet.jpg)
+
+`Option-K` opens the cheatsheet from
+[`docs/omacosy-键位设置.html`](docs/omacosy-键位设置.html). Type to
+filter. Esc closes.
+
+## Screensaver
+
+Idle five minutes: Ghostty + ttfx on the built-in display only, 120
+fps, shuffle-bag so an effect does not repeat until the set has
+played. Seven more minutes: display off and lock. External screens
+stay dark covers. Apple menu → Screensaver starts it now. A key or
+click exits and locks. No desktop rain.
+
+## Keys that matter
+
+Super = Option. Command is still macOS.
+
+| Chord | What it does |
+|---|---|
+| `⌥ 1…9` | this display's workspace N |
+| `⌥ Shift 1…9` | move the window there and follow |
+| `⌥ Tab` / `⌥ Shift Tab` | next / previous workspace |
+| `⌥ ←↓↑→` | focus in that direction |
+| `⌥ Shift ←↓↑→` | swap with the window in that direction |
+| `⌥ T` | tile / float |
+| `⌥ F` / `⌥ N` | fill this workspace / native fullscreen |
+| `⌥ Enter` / `⌥ Shift Enter` | Ghostty / Chrome |
+| `⌥ Space` | local file search (`⌘ Space` is Spotlight) |
+| `⌥ Shift T` / `⌥ Shift B` | next theme / next wallpaper |
+| `⌥ K` | this cheatsheet |
+| `⌘ H` | hide, stay on this workspace |
+
+The rest, including resize mode (`⌥ R`) and service mode
+(`⌥ Shift ;`), is in the HTML sheet.
+
+## Install
 
 ```sh
 git clone https://github.com/YikesYellowPharmakon/omacosy.git ~/.local/share/omacosy &&
 cd ~/.local/share/omacosy && ./install.sh
 ```
 
-The original project this rice is based on is
-[paulsp94/omacosy](https://github.com/paulsp94/omacosy).
+Clone path matters. Configs are symlinked into the repo, and macOS
+TCC blocks launchd services from `~/Documents`, `~/Desktop`, and
+`~/Downloads`. Clone there and the installer copies instead of
+linking; edits then need another `install.sh`.
 
-The clone location matters. Configs are symlinked into the repo, and
-macOS privacy (TCC) blocks launchd services from reading `~/Documents`,
-`~/Desktop` and `~/Downloads`. If you clone there anyway, the installer
-falls back to copying configs; that still works, but edits then need an
-`install.sh` re-run to apply.
+The installer is idempotent: Homebrew if missing, `brew bundle`,
+helper binaries, AeroSpace config from `apps.conf`, symlinks, hide
+the native menu bar, default theme, start the agents.
 
-The installer is idempotent. It installs Homebrew if missing, runs
-`brew bundle`, compiles the helper binaries, generates the AeroSpace
-config from your app choices, symlinks configs (backing up anything it
-would replace), hides the native menu bar, applies the default theme,
-and starts the services.
-
-See [Permissions](#permissions) for the grants it asks of you, what
-each one is used for, and what breaks without it. Karabiner-Elements
-also asks you to approve its driver extension.
-
-## Updating
+Update:
 
 ```sh
 omacosy-update          # pull, then re-run the installer
-omacosy-update --check  # just say whether there is anything new
+omacosy-update --check  # say whether there is anything new
 ```
 
-`install.sh` rebuilds only the binaries whose sources changed and
-restarts their agents, so an update is a pull plus a re-run, and this
-command wraps both. It refuses a clone with local edits, and refuses
-one whose branch has diverged, rather than deciding either for you.
-
-There is no background update check. The bar makes exactly one network
-call (the weather), and a daemon polling GitHub on a timer would
-quietly make that two. Nothing here contacts the network unless you
-run it.
+Park without uninstalling: `omacosy-toggle off` / `on`.
+Remove: `./uninstall.sh` (manifest-driven; leaves pre-existing
+Homebrew packages alone).
 
 ## Permissions
 
-A window manager needs broad permissions, so here is the whole list:
-every grant, which binary asks, what it is used for, and what you lose
-by refusing it. Everything is refusable; the parts that depend on a
-grant hide themselves rather than half-work.
+Everything is refusable. Parts that depend on a grant hide themselves
+instead of half-working.
 
-| Grant | Who asks | What it does | Without it |
-|---|---|---|---|
-| **Accessibility** | AeroSpace *or* OmniWM, `omacosy-gesture`, `omacosy-bar` (reads the focused app's menus for the app-pill popup), `omacosy-ffm` (AeroSpace mode only) | Move, resize and focus other apps' windows. This is the tiling itself, and it is the broadest permission here. | Nothing tiles. Not optional in practice. |
-| **Input Monitoring** | `omacosy-gesture` (Karabiner-Elements is still a Homebrew dep from upstream; this fork does not remap Caps Lock) | `omacosy-gesture` reads raw trackpad contacts, because macOS 26 stopped carrying touch data in normal events. Super is Option and does not need Karabiner. | No swipe gestures. Super still works. |
-| **Screen Recording** | `omacosy-overview` | Captures a thumbnail per window for the overview cards, including windows the window manager has stashed offscreen. A screenshot of the visible screen could not see those. | Cards fall back to app icons and titles. |
-| **Bluetooth** | `omacosy-bar` | Reads adapter power and the paired-device list for the bluetooth pill and its menu. | The pill hides itself. |
-| **Location** | `omacosy-bar` | Reads **only** the wi-fi network's name, which macOS classes as location data. No coordinate is ever requested; the authorisation itself is what unlocks `CWInterface.ssid()`. | The wi-fi popup's title row reads "wi-fi" instead of your network's name. Everything else is unaffected. |
-| **Automation** | `omacosy-bar`, `theme-set` | Apple Events to **Spotify** (what is playing; play/pause/next from the media pill) and to **System Events** (sleep, lock and restart from the Apple menu; setting the wallpaper). | The media pill hides; those menu rows do nothing. |
-| **Files and Folders** | `omacosy-bar` | Only if your clone lives in `~/Documents`, `~/Desktop` or `~/Downloads`. The bar reads its palette from the theme directory inside the repo, and macOS walls launchd agents off from those folders. | The bar **hangs at startup** waiting on the prompt. Clone to `~/.local/share/omacosy` and this never comes up. |
+| Grant | Who | Without it |
+|---|---|---|
+| Accessibility | AeroSpace, gesture, bar, ffm, dock | nothing tiles |
+| Input Monitoring | gesture | no four-finger swipes |
+| Screen Recording | overview | cards fall back to icons and titles |
+| Bluetooth | bar | the pill hides |
+| Location | bar (SSID only, no coordinates) | wifi popup title is just "wi-fi" |
+| Automation | bar, theme-set (System Events for wallpaper / sleep / lock) | those menu rows do nothing |
 
-More on **Location**, because it sounds worse than it is: it buys
-exactly one string. The bar requests authorisation and then reads
-`ssid()`. It never asks for a position, holds no coordinate and starts
-no location updates. Two things are required and neither alone is
-enough: measured on macOS 26.3, an unbundled binary reads `nil` however
-it is authorised, which is why the bar ships inside a minimal `.app`.
-Refuse the grant and you lose the name, nothing else.
+No telemetry. One network call: `wttr.in` for the weather pill.
+omacosy binaries never run as root. Karabiner-Elements still ships as
+an upstream Homebrew dep and *does* run as root; this rice does not
+remap Caps Lock with it. Skip the driver extension if that trade is
+wrong; Super still works.
 
-### What it does not do
+## Memory
 
-- **No telemetry, no analytics, no crash reporting.** Nothing is sent
-  anywhere about you or this machine.
-- **One network call**, ever: `https://wttr.in/?format=j1` on a long
-  timer, for the weather pill. wttr.in infers your city from the IP the
-  request arrives on; no coordinates are gathered or sent, and the bar
-  holds no location API. Delete the weather pill and nothing leaves the
-  machine.
-- **omacosy's own binaries never run as root.** `install.sh` uses no
-  sudo, installs no LaunchDaemon, and every helper it builds runs as
-  you, in your login session.
-- **Karabiner-Elements does run as root, and you should know that
-  before installing.** It is a Homebrew dependency from upstream. This
-  fork does not use it to turn Caps Lock into Super — Super is Option,
-  and Caps Lock stays Caps Lock for the Chinese IME. It still ships a
-  DriverKit system extension plus daemons that run as root
-  (`Karabiner-VirtualHIDDevice-Daemon`, `Karabiner-Core-Service`); that
-  is what the driver-extension approval during install is. It is the
-  most privileged thing this repo puts on your Mac, and it is
-  third-party. Skip it if that trade is wrong for you; Super and
-  everything else still work.
-- **Nothing here reads your keystrokes.** No omacosy binary opens a
-  keyboard event tap. Only Karabiner sees keys, which is inherent to
-  remapping one. `omacosy-gesture`'s event tap is gesture-only and
-  listen-only (`1 << NSEventTypeGesture`, `kCGEventTapOptionListenOnly`),
-  so it cannot see or alter a keystroke. Debug logs
-  (`/tmp/omacosy-*.log`) carry window titles, app names and workspace
-  numbers, never input.
-
-Grants are tied to a binary's code signature. With an Apple Development
-identity present, `install.sh` signs every helper with a stable
-identifier so rebuilds keep their grants; without one, macOS treats
-each rebuild as a new app and you re-grant after every install.
-
-## App choices
-
-Keybindings launch apps defined in `config/apps.conf`. Defaults in this
-fork are Ghostty, Google Chrome, NeteaseMusic, ChatGPT (terminal,
-browser, music, messenger).
-Override any of them in `config/apps.local.conf` (gitignored), then
-re-run `install.sh`:
-
-```sh
-# config/apps.local.conf — your picks win over apps.conf
-TERMINAL=Korren
-BROWSER=Arc
-```
-
-Your personal shell config belongs in `~/.zshrc.local`; the repo's
-`zshrc` wires the CLI stack and sources it.
+About **157 MB** footprint (Activity Monitor "Memory") across the WM,
+bar, dock, borders, gesture, ffm, overview, and Karabiner, measured
+docked. RSS reads higher because shared frameworks are counted per
+process.
 
 ## What's inside
 
-| Piece | Tool | Config |
-|---|---|---|
-| Tiling WM | [AeroSpace](https://github.com/nikitabobko/AeroSpace) *or* [OmniWM](https://github.com/BarutSRB/OmniWM) via `omacosy-wm-switch` | `config/aerospace/aerospace.template.toml`, `config/omniwm/settings.toml` |
-| Super key | This fork: Option. Upstream default: [Karabiner](https://karabiner-elements.pqrs.org) Caps Lock → cmd+ctrl+alt | `config/karabiner/` (copied, not symlinked — TCC) |
-| Status bar, popups, shade | `omacosy-bar` (self-compiled launchd agent, one process draws all of it) | `helper/bar.swift` |
-| Window borders + fullscreen shroud | `omacosy-borders` (self-compiled launchd agent) | `helper/borders.swift`, `config/borders.conf` |
-| Focus follows mouse | `omacosy-ffm` (self-compiled launchd agent; parked under OmniWM, whose native ffm takes over) | `helper/ffm.swift`, `config/ffm-ignore` |
-| Trackpad gestures | `omacosy-gesture` (self-compiled launchd agent; engine absorbed from [aerospace-swipe](https://github.com/acsandmann/aerospace-swipe), MIT) | `helper/gesture/`, `config/gesture/` (live copy: `~/.config/omacosy/gesture.json`) |
-| Workspace overview | `omacosy-overview` (self-compiled resident daemon) | `helper/overview.swift` |
-| Dwindle split direction | AeroSpace: `on-focus-changed` hook running `omacosy-helper split-hint`; OmniWM: native dwindle + a preselect in `omacosy-spawn` (omarchy's right/below insertion) | `config/aerospace/aerospace.template.toml`, `helper/main.swift` |
-| Workspace / window navigation | `omacosy-ws`, `omacosy-cycle`, `omacosy-float`, `omacosy-wm-switch`; under OmniWM all of it rides `omacosy-omni`, a held-socket IPC client | `bin/`, `helper/gesture/omniwm.c` |
-| Terminal look & spawn size | Ghostty (hidden titlebar; new windows spawn small so tiling never flashes full-screen) | `config/ghostty/config` |
-| Park/restore the stack | `omacosy-toggle` | `bin/omacosy-toggle` |
-| System glue | `omacosy-helper` (self-compiled) | `helper/main.swift` |
-| Prompt | starship | `config/starship.toml` |
-| Shell | zsh | `zsh/zshrc` + your `~/.zshrc.local` |
-| CLI stack | fzf, eza, zoxide, ripgrep, bat, lazygit, btop | wired in `zsh/zshrc` |
-
-Why so much of it is self-built:
-
-- **AutoRaise** broke on macOS 26 (cooperative activation), so
-  `omacosy-ffm` focuses windows through the same SkyLight calls
-  AeroSpace uses.
-- **aerospace-swipe** broke because CGEvent taps stopped carrying
-  multi-touch data on macOS 26.3. We fixed it (raw MultitouchSupport
-  frames) and offered the fixes upstream as
-  [#29](https://github.com/acsandmann/aerospace-swipe/pull/29) and
-  [#30](https://github.com/acsandmann/aerospace-swipe/pull/30); once
-  the daemon had to serve both window managers and carried more of
-  our patches than upstream commits, the engine moved in-tree as
-  `omacosy-gesture` (MIT notice kept).
-- **JankyBorders** keeps a bitmap per window and costs hundreds of MB.
-  `omacosy-borders` strokes one CAShapeLayer that the WindowServer
-  rasterizes, driven by SkyLight notifications for focus, move and
-  resize, so the ring glides with drags without polling.
-- **Mission Control** cannot see AeroSpace's virtual workspaces, so a
-  workspace overview cannot be had any other way than
-  `omacosy-overview` capturing them itself.
-- **`omacosy-helper`** covers wallpaper setting (System Events
-  scripting half-broke in macOS 14+), CoreAudio output switching,
-  IOBluetooth control, cursor position, per-display notch detection,
-  and the dwindle split hint.
-- **`omacosy-bar`** holds the window model in memory and subscribes to
-  the system's own publishers: SkyLight for window churn, IOBluetooth
-  for connects, SCDynamicStore for the network, IOPS for battery,
-  CoreAudio for volume, DisplayServices for brightness, Spotify's own
-  broadcast for the track. It polls for nothing macOS announces; its
-  only timers are the weather fetch and the clock. A workspace switch
-  repaints in 2.5 ms because it asks no one anything; the shell bar it
-  replaced took 164 ms to answer the same event.
-
-## The bar
-
-One process draws all of it: bar, popups and sliders are surfaces of
-`helper/bar.swift`. Transparent bar, everything a flat radius-4 pill.
-A popup stays open while the pointer is anywhere in the bar or the
-popup, and closes when it is in neither. The bar hides itself when a
-window takes the whole display, and comes back if you put the pointer
-on the very top edge, so brightness and volume stay reachable mid-film
-without leaving fullscreen. The climb happens only when a fullscreen
-window actually covers the bar — otherwise the top edge belongs to the
-auto-hidden native menu bar, which reveals ABOVE the bar and stays
-clickable (app menus were unreachable before that fix). It drops back
-behind everything when the pointer leaves. Under OmniWM the bar simply
-stays visible in its reserved strip and never plays this game.
-
-If the native menu bar ever gets stuck revealed over the bar (a
-Tahoe bug, most often poked by a Focus mode's menu-bar icon),
-`killall SystemUIServer` resets it.
-
-### Workspace icons
-
-You can set workspace icons in the optional
-`~/.config/omacosy/workspace-icons.conf` file. Each non-comment line has one
-workspace name, an equals sign, and either one Unicode scalar or a reverse-DNS
-application bundle identifier.
-
-```
-1 = ★
-14 = ◆
-
-4 = com.apple.Safari
-```
-
-The bar first uses a configured icon. It then uses the icon of the sole app on
-that workspace, and finally shows the workspace's last digit. Exact workspace
-names win. In this example, workspace `14` uses `◆`, not the `4` shorthand.
-The shorthand applies only to multi-digit, all-numeric workspace names ending
-in `1` through `9` when they have no valid exact declaration.
-
-The bar reads the file once at startup. To apply an edit, restart it with:
-
-```sh
-launchctl kickstart -k "gui/$(id -u)/com.omacosy.bar"
-```
-
-Malformed lines are logged and ignored. A well-formed bundle identifier that
-does not resolve to an installed app is unavailable. It blocks shorthand for
-that exact workspace, then the bar falls back to the sole app or the digit.
-Image paths are unsupported because the bar resolves configured app icons at
-startup and does no config-file or image-file I/O while it draws.
-
-- **Apple menu**: the REAL one, read over Accessibility — About This
-  Mac, System Settings, Recent Items (drills in, with app and
-  file-type icons resolved locally since AX exposes none), Force Quit,
-  the power verbs — plus omacosy's Next Theme at the bottom. Hidden
-  hold-Option duplicates are collapsed; falls back to a hand-rolled
-  list without the Accessibility grant.
-- **App menus**: clicking the front-app pill drops that app's actual
-  menu bar into a popup — File/Edit/… drill into their real items,
-  nested submenus included, and clicking a leaf performs it directly
-  via AXPress with no native menu ever appearing. Shortcuts sit
-  right-aligned; enabled-state is not rendered because apps validate
-  menu items only when a menu opens, so closed-menu reads lie. Menus
-  taller than the screen scroll. The one thing the auto-hidden native
-  bar still owned, gone.
-- **Workspaces**: one segmented capsule per monitor showing only that
-  monitor's workspaces; accent pill on the focused one; click to jump.
-- **Media**: prev / play-pause / next + track title (Spotify). Centered
-  on flat displays, left cluster on notched ones (per-display notch
-  detection via `NSScreen.safeAreaInsets`), hidden when Spotify isn't
-  running.
-- **Bluetooth**: device menu (click to connect/disconnect), power
-  toggle.
-- **WiFi**: the pill is the icon alone; the popup names the network and
-  adds ip and router, signal with a verdict, link rate and security
-  generation, channel with its band and width. The name is in the popup
-  because an SSID can be arbitrarily wide, and on a notched display a
-  long one pushed the right cluster under the notch. The name needs the
-  Location grant (see [Permissions](#permissions)).
-- **Weather**: wttr.in, cached details popup.
-- **Volume**: scroll adjusts, click opens slider + output-device menu,
-  right-click mutes.
-- **Brightness**: scroll adjusts, click opens a slider (DisplayServices,
-  no deps). Scrolling past 0 keeps going: a **shade** dims the display
-  below its hardware minimum by scaling gamma, so there is no overlay
-  window in the z-order and screenshots come out normal. It survives
-  sleep/wake and it reaches external displays, which have no backlight
-  API. Gamma is reset when the setting process exits, so a crash or an
-  uninstall restores the screen by itself.
-- **Battery** / **Clock** (calendar popup) / **Activity** (floating
-  btop).
-- **Floats**: appears only while the workspace holds floating windows;
-  click surfaces the next one.
-
-## Keybindings — this fork: Super = Option
-
-Super is Option. Command stays macOS. Caps Lock stays Caps Lock for
-the Chinese IME — Karabiner does not remap it. The bar cheatsheet is
-rendered from [`docs/omacosy-键位设置.html`](docs/omacosy-键位设置.html),
-which matches `~/.config/aerospace/aerospace.toml`.
-
-| Chord | Action |
+| Piece | What |
 |---|---|
-| **Navigation** | |
-| `Super+1..9` | switch to this display's workspace N |
-| `Super+tab` / `Super+shift+tab` | next / previous workspace, within this display's set |
-| `Ctrl+Alt+tab` | last two workspaces |
-| `Super+\`` / `Super+shift+\`` | cycle windows **on this workspace**, floats included |
-| `Ctrl+Alt+Shift+tab` | cycle focus between displays |
-| `Super+arrows` | focus the window in that direction |
-| `Super+s` | surface the next floating window (and bring the cursor) |
-| **Moving windows** | |
-| `Super+shift+arrows` | move the window in that direction |
-| `Super+shift+1..9` | move the window to workspace N and follow it |
-| `Super+shift+o` | throw the window to the same slot on the other display |
-| `Super+shift+space` | throw the WHOLE workspace to the other display |
-| **Layout** | |
-| `Super+w` / `Super+q` | close window (`Cmd+W` still closes a tab) |
-| `Super+t` | toggle the focused window between tiling and floating |
-| `Super+j` | toggle split direction |
-| `Super+f` | AeroSpace fullscreen (stays on this workspace) |
-| `Super+-` / `Super+=` | resize |
-| `Super+n` | native macOS fullscreen (a separate Space) |
-| `Super+r` | resize mode (`h/j/k/l`, `-`/`=`, `esc`) |
-| `Super+shift+;` | service mode (`esc` reload, `r` flatten, `⌫` close others) |
-| **Apps and system** | |
-| `Super+enter` / `Super+shift+enter` | Ghostty / Chrome |
-| `Super+space` | Spotlight (same as `Cmd+Space`) |
-| `Super+shift+f` / `+m` / `+g` | home folder / NetEase Cloud Music / ChatGPT |
-| `Super+shift+t` | next theme |
-| `Super+shift+b` | next wallpaper of the current theme |
-| `Ctrl+Alt+L` | lock the screen |
-| `Super+k` | keybinding cheatsheet |
+| Tiling | [AeroSpace](https://github.com/nikitabobko/AeroSpace) (OmniWM optional via `omacosy-wm-switch`) |
+| Bar, popups, shade | `omacosy-bar` |
+| Dock | `Omacosy Dock.app` |
+| Borders | `omacosy-borders` |
+| Focus follows mouse | `omacosy-ffm` |
+| Trackpad | `omacosy-gesture` |
+| Overview | `omacosy-overview` |
+| Theme | `theme-set` / `theme-next` / `theme-bg-next` |
+| Terminal | Ghostty, hidden titlebar |
 
-Not bound on this fork: `Super+b` (workspace back-and-forth is
-`Ctrl+Alt+tab`), `Alt+tab` as a window cycle (`Super+tab` is the next
-workspace; windows are `Super+\``), `Super+shift+l` (lock is
-`Ctrl+Alt+L`).
+The helpers are small signed Swift / C binaries. Several of the
+tools this replaced (AutoRaise, aerospace-swipe, JankyBorders,
+Mission Control vs virtual workspaces) are broken or the wrong
+shape on macOS 26.
 
-![The keybinding cheatsheet — every binding, from docs/omacosy-键位设置.html](docs/screenshots/cheatsheet.jpg)
+## License
 
-Screenshots, clipboard, app switching and Spotlight stay macOS's own
-(`Cmd+Shift+3/4/5`, `Cmd+C/V`, `Cmd+Tab`, `Cmd+Space` / `Super+Space`).
+MIT. Upstream copyright Paul Spende; this tree keeps that license
+and history. Local work is the rice: Super as Option, the five
+themes, the themed Ghostty dock icon, hide-without-jumping, the
+Ghostty screensaver, and the rest of the chrome on this machine.
 
-**On the modifier space.** Super is Option, so Command stays free for
-macOS and Shift is the extra layer. Lock is `Ctrl+Alt+L`. Overflow
-lives in binding modes.
-
-Each display owns an independent set of nine workspaces, omarchy style:
-main holds 1–9, secondary holds 11–19. Same last digit means the same
-slot, and the bar and overview render only the slot digit. `Super+N`
-switches the focused monitor's slot N (via `omacosy-ws`);
-`Super+Shift+N` moves the window to that slot; `Super+Shift+O` throws
-the window to the same slot on the other monitor. Windows open on the
-workspace you're on; nothing is auto-assigned by app.
-
-**Unplugging folds the second display's workspaces into the first.**
-AeroSpace parks 11–19 on the remaining display, but `Super+N` and
-`Super+Tab` only match single-digit slots, so without help every window
-on a secondary workspace would be stranded where no keybinding reaches
-it. On a monitor-count change the bar runs `omacosy-ws-collapse`: each
-occupied guest workspace empties into the lowest free 1–9 slot,
-occupied slots are never touched, and every moved window is recorded
-with its origin. Plug the display back in and they go home
-individually, so anything you opened while undocked stays put.
-
-## Themes
-
-`theme-set <name>` switches everything at once: bar, borders, wallpaper
-on every display, and any terminal that follows omarchy's
-`~/.config/omarchy/current/theme` convention (the author's does).
-`Super+Shift+T` cycles themes. `Super+Shift+B` cycles the current
-theme's wallpapers. Each theme keeps the last chosen accent and
-wallpaper.
-
-Themes: `azure`, `enter-the-matrix`, `no-bad-memories`, `snow-black`, `space-monkey`. Each
-`themes/<name>/` holds `colors.toml` (omarchy's 22-color palette),
-`sketchybar.sh` / `borders.sh` (bar and ring colors; the file keeps its
-omarchy name and format, and the ring uses the theme accent, omarchy's
-own convention), and `backgrounds/` (wallpapers from omarchy's
-MIT-licensed theme packs). Copy a directory to add one.
-`no-bad-memories` is local: its palette is sampled from a wallpaper made
-from the MV and album art, and that wallpaper is not in the repo.
-
-## Tiling: dwindle
-
-![Three terminals in a dwindle layout — README, git log and btop — accent border ring on the focused one](docs/screenshots/tiling.jpg)
-
-AeroSpace natively inserts new windows as equal siblings, so three
-windows become three columns. Hyprland's dwindle splits the focused
-window along its own longer edge instead: a new window lands beside a
-wide window and below a tall one. This fork's first pair is always
-left/right (`default-root-container-orientation = horizontal`); a
-later window stacks only when the focused pane is taller than it is
-wide.
-
-AeroSpace cannot express that rule. Its config language has no window
-geometry; the format variables are ids, titles and container layouts,
-with no width or height anywhere. So the direction is decided in code:
-the `on-focus-changed` hook runs `omacosy-helper split-hint`, which
-reads the newly focused window's frame and issues
-`aerospace split horizontal` or `vertical` on it.
-
-The timing is what matters. The hint lands before the next window
-exists, so AeroSpace places that window correctly in its first pass.
-An earlier version was a daemon that re-nested windows after AeroSpace
-had already placed them, and you could see it: the screen laid out
-twice, about 250ms apart. What remains now is the new window's own
-first frame, which appears about 150ms before AeroSpace tiles it. No
-window manager can place a window that does not exist yet.
-
-Two implementation notes. `enable-normalization-flatten-containers` is
-off, because it dissolves the very container `split` creates (AeroSpace
-prints a warning saying so if you try). And the hint waits for the
-window's frame to hold still before reading it, then names its window
-with `--window-id` instead of trusting "the focused window". Both guard
-against the same thing: a new window fires the hook too (it takes focus
-on open), at a moment when its frame is still the app's default shape
-and another window may grab focus before the hint lands. One hook
-covers both hover and keyboard focus: AeroSpace notices the focus
-`omacosy-ffm` moves, even though ffm moves it through SkyLight.
-
-Manual control (Super+J flips, resize, float) works unchanged.
-
-Floats get a rescue path, because macOS will not keep them on top:
-z-order is per app, not per window, so a float sinks behind whichever
-app you focus next, and pinning it would need a private call with SIP
-off. Instead the bar grows a pill whenever the focused workspace holds
-floats, and **Super+S** or a click on that pill surfaces the next one
-and brings the cursor with it.
-
-## Two window managers (OmniWM option, beta)
-
-AeroSpace is the default. [OmniWM](https://github.com/BarutSRB/OmniWM)
-is a newer, signed-and-notarized tiling WM with a native dwindle
-layout — omacosy can run on either, and switching is one command:
-
-```sh
-omacosy-wm-switch omniwm      # installs OmniWM on first use, then
-                              # switches with a guarded handover
-omacosy-wm-switch aerospace   # the way back
-```
-
-The switch is deliberately paranoid: it snapshots your windows, waits
-for you to grant OmniWM's permissions, and requires you to confirm
-within 90 seconds that workspace switching works — anything else
-reverts to AeroSpace automatically and puts your windows back.
-
-Under OmniWM everything keeps working — bar, overview (with
-type-to-search), gestures, keybindings, themes — and the dwindle
-layout is native, so the split-hint machinery below simply isn't
-needed there. What changes: OmniWM draws the focus border (themed by
-theme-set), app-launching chords run through Karabiner rules that the
-switch installs and removes, and Super+Space opens OmniWM's command
-palette instead of Raycast.
-
-Under OmniWM the plumbing changes shape: `Super+N`/`Hyper+N` route
-through Karabiner into `omacosy-omni` (a held-socket IPC client) so
-slots resolve on the display under your cursor — OmniWM's native
-hotkeys are name-global and would always hit the main set — at the
-cost of ~40 ms per chord. `Hyper+arrows` swap tiles; OmniWM's own
-directional move *stacks* windows into a group, which stays available
-on `ctrl+opt+shift+arrows`.
-
-Honesty section: this option is daily-driven on the author's desk
-(0.6.4, docked multi-monitor, each display running its own nine
-workspaces), and docs/omniwm-port.md carries a ledger of upstream
-quirks found while porting — read it before assuming a weird layout is
-omacosy's fault. AeroSpace remains the longer-tested default.
-
-## Focus follows mouse & swipes
-
-Under the OmniWM option this daemon is parked: OmniWM's native
-focus-follows-mouse (with warp-to-focus and hover-raise) replaces it.
-Under AeroSpace, `omacosy-ffm`: hover focuses, with no raise over floating windows, so
-floats stay in front. It is event-driven off mouse movement, so a
-parked cursor never steals focus from a launching window. It never
-changes focus during drags, and never through an always-on-top panel:
-hovering a Touch ID prompt leaves focus exactly where it is instead of
-falling through to the window beneath. Per-app opt-out lives in
-`config/ffm-ignore` (omarchy's JetBrains-style exception).
-
-4-finger swipes left/right switch workspaces on the display under the
-cursor (native-Spaces semantics), with wrap-around, on any trackpad.
-The system's own 4-finger gestures are disabled by `macos-defaults.sh`
-so Mission Control never fights the daemon; `uninstall.sh` restores
-them.
-
-## Workspace overview
-
-![Workspace overview — live preview cards over the zoomed-out wallpaper, chips for empty workspaces](docs/screenshots/overview.jpg)
-
-4-finger **swipe up**: the wallpaper breathes in behind a dim wash and
-every non-empty workspace of the cursor's monitor gets a card
-(per-display Mission Control semantics), with live window previews
-(ScreenCaptureKit, composed into the tile layout), app icons, and an
-accent ring on the focused workspace. Click a card or press its digit
-to jump; empty workspaces show as small chips, and digits work for them
-too. **Swipe down**, Esc, or a backdrop click dismisses. It is a
-resident daemon, so it opens instantly.
-
-**Type to search** while it is open: a search pill filters cards to
-matching window titles and apps as you type, `Enter` jumps to the
-first hit, `Esc` clears the filter before it closes the overview.
-Digits type into an active filter instead of switching, so numeric
-titles stay reachable.
-
-**Drag a card** to reorganize: the row makes room as you move, and the
-drop slides everything between the old and new position over by one.
-Workspaces cannot be renamed or resequenced in either WM (the name is
-the position), so what actually moves is their windows, which means a
-split layout inside a moved workspace comes back as a flat row. Dropping a
-card on an empty chip moves that workspace there instead.
-
-## Parking the setup
-
-`omacosy-toggle off` returns to a vanilla Mac in one command (AeroSpace
-stops managing, all daemons and the bar stop) without uninstalling;
-`omacosy-toggle on` brings everything back. No argument flips.
-
-## Memory use
-
-About **157MB** of physical footprint (what Activity Monitor calls
-Memory) across WM, bar, three background daemons, the gesture daemon and
-Karabiner, measured docked to a second display. Resident set size reads
-~322MB, but RSS counts each process's share of the same shared system
-frameworks more than once, so footprint is the number to compare.
-(Measured in AeroSpace mode; OmniWM mode is a wash — its ~44MB WM
-replaces AeroSpace plus the parked `omacosy-ffm`.)
-Largest first:
-
-| | footprint | RSS |
-|---|---|---|
-| `omacosy-overview` | 36MB | 46MB |
-| `omacosy-bar` | 32MB | 55MB |
-| AeroSpace | 24MB | 85MB |
-| Karabiner (4 processes) | 24MB | 61MB |
-| `omacosy-borders` | 19MB | 29MB |
-| `omacosy-gesture` | 13MB | 22MB |
-| `omacosy-ffm` | 10MB | 24MB |
-
-On one display the same set measured ~155MB; the bar and the border
-overlay each draw per-screen, and AeroSpace carries a second workspace
-set. The figures move with uptime. `omacosy-overview` caches a
-half-resolution capture per window shown, so it starts near 9MB and
-settles around 37MB; it plateaus there rather than climbing, because
-the cache is refiltered to the visible set on each open. AeroSpace
-drifts the other way, reading higher the longer it runs. Packaging the
-bar as an `.app` (which is what unlocks the wi-fi network name) cost
-about 1MB; the bundle is a directory and an Info.plist, not a second
-copy of anything.
-
-## Back to a normal Mac
-
-```sh
-./uninstall.sh
-```
-
-Manifest-driven: `install.sh` records what this machine actually gained
-(Homebrew packages that weren't already present, cloned repos, every
-`defaults` key's prior value), and `uninstall.sh` removes and restores
-exactly that. Tools and settings you had before omacosy are never
-touched. Pre-manifest installs fall back to a conservative teardown
-that leaves all Homebrew packages in place.
-
-## License & credits
-
-MIT (see `LICENSE`).
-
-**Based on [omacosy](https://github.com/paulsp94/omacosy)** by
-[paulsp94](https://github.com/paulsp94). This tree keeps that license
-and history; the local changes are a personal rice (themes, Ghostty
-screensaver, Theme picker, and related chrome).
-
-Also standing on: [omarchy](https://omarchy.org)
-(the whole idea, plus MIT-licensed theme palettes and wallpapers),
+Also standing on [omarchy](https://omarchy.org),
 [AeroSpace](https://github.com/nikitabobko/AeroSpace),
 [Karabiner-Elements](https://karabiner-elements.pqrs.org),
-[aerospace-swipe](https://github.com/acsandmann/aerospace-swipe) (MIT;
-its gesture engine lives on here as `omacosy-gesture`, notice kept in
-`helper/gesture/`).
+[aerospace-swipe](https://github.com/acsandmann/aerospace-swipe).
