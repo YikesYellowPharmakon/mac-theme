@@ -1893,23 +1893,29 @@ def write_sidecars(theme_dir: Path, colors: dict[str, str] | None = None) -> dic
     bar_red = punch_on(colors["color1"], bg)
     bar_green = punch_on(colors["color2"], bg)
     bar_yellow = punch_on(colors["color3"], bg)
+    bar_solid = bg
+    label_bar = fg
     if theme_dir.name == "no-bad-memories":
         # Lacquer-red pills. The theme red would vanish on them, so the
         # glyphs, the active chip and the low-battery mark turn cream.
         item_bg = "#E0140C"
         accent_bar = "#FFF3E8"
         icon_bar = "#FFF3E8"
-        muted_bar = "#FFC2B8"
+        muted_bar = "#FFD6CC"
         bar_red = "#FFF3E8"
         bar_green = "#9CF25A"
         bar_yellow = "#FFE45C"
+        # BAR_BG_SOLID fills the bar's menus and cheatsheet; the terminal
+        # violet there did not match the red pills.
+        bar_solid = "#E0140C"
+        label_bar = "#FFF3E8"
     (theme_dir / "sketchybar.sh").write_text(
         "#!/usr/bin/env bash\n"
         f"export BAR_COLOR={argb(bg, 'e6')}\n"
-        f"export BAR_BG_SOLID={argb(bg)}\n"
+        f"export BAR_BG_SOLID={argb(bar_solid)}\n"
         f"export ITEM_BG={argb(item_bg)}\n"
         f"export ACCENT={argb(accent_bar)}\n"
-        f"export LABEL_COLOR={argb(fg)}\n"
+        f"export LABEL_COLOR={argb(label_bar)}\n"
         f"export ICON_COLOR={argb(icon_bar)}\n"
         f"export MUTED={argb(muted_bar)}\n"
         f"export RED={argb(bar_red)}\n"
