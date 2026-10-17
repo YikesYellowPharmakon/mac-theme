@@ -95,9 +95,9 @@ float easeClamped(float x) {
 }
 
 // Trail animation duration in seconds
-const float DURATION = 0.25;
+const float DURATION = 0.42;
 
-const float TAIL_STRETCH = 2.0;
+const float TAIL_STRETCH = 6.0;
 
 vec2 screenExit(vec2 from, vec2 dir) {
     vec2 d = dir;

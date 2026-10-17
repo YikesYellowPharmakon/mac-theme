@@ -136,7 +136,9 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     float mask = clamp(c0 * 0.2, 0.0, 1.0) * fade;
 
     // fragColor = mix(fragColor, vec4(rgb, 1.0), mask);
-    vec4 newColor = fragColor + vec4(rgb * mask, 1.0); // additive
+    // Alpha rises only under a spark; a full 1.0 here makes every pixel
+    // opaque and cancels background-opacity.
+    vec4 newColor = fragColor + vec4(rgb * mask, mask); // additive
     // newColor = mix(newColor, fragColor, step(sdfCurrentCursor, 0.));
     fragColor = min(newColor, 1.0); // clamp
 }
