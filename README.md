@@ -8,7 +8,7 @@ Forked from [paulsp94/omacosy](https://github.com/paulsp94/omacosy)
 (omarchy-style rice for macOS). Daily-driven on an M1 MacBook Air,
 macOS 26, SIP on.
 
-![Desktop — themed bar over the wallpaper](docs/screenshots/desktop.jpg)
+![space-monkey — bar over this machine's wallpaper](docs/screenshots/desktop.jpg)
 
 Same tree is also published as
 [omacosy-standalone](https://github.com/YikesYellowPharmakon/omacosy-standalone)
@@ -59,11 +59,20 @@ lock screen (same wallpaper as the desktop).
 | **snow-black** | white on black, gray ring | `#888888` |
 | **space-monkey** | rust and amber | `#bd4924` |
 
-![azure](docs/palettes/azure.svg)
-![enter-the-matrix](docs/palettes/enter-the-matrix.svg)
-![no-bad-memories](docs/palettes/no-bad-memories.svg)
-![snow-black](docs/palettes/snow-black.svg)
-![space-monkey](docs/palettes/space-monkey.svg)
+![azure](docs/screenshots/azure.jpg)
+![enter-the-matrix](docs/screenshots/enter-the-matrix.jpg)
+![snow-black](docs/screenshots/snow-black.jpg)
+![space-monkey](docs/screenshots/space-monkey.jpg)
+
+The same four, with a staged terminal so the palette recolors the text.
+Nothing on screen is a personal window. `no-bad-memories` is the daily
+theme; its wallpaper is local and not in this repo. The tiling shot
+below is that theme, with Ghostty left transparent the way it runs.
+
+![azure terminal](docs/screenshots/terminal-azure.jpg)
+![enter-the-matrix terminal](docs/screenshots/terminal-matrix.jpg)
+![snow-black terminal](docs/screenshots/terminal-snow.jpg)
+![space-monkey terminal](docs/screenshots/terminal-space.jpg)
 
 What a theme actually recolors:
 
@@ -83,7 +92,7 @@ gitignored.
 
 ## Layout and workspaces
 
-![Three terminals in a dwindle — README, git log, btop](docs/screenshots/tiling.jpg)
+![Three staged terminals in a dwindle, no-bad-memories](docs/screenshots/tiling.jpg)
 
 Each display owns nine workspaces: main 1–9, external 11–19. Same last
 digit is the same slot. `Option-N` switches this display's slot N;
@@ -118,14 +127,12 @@ its window, or cycle its windows. Right-click is Open / Options / Hide
 / Quit (Option for Force Quit). Hide uses the same parking path as
 `Cmd-H`.
 
-![Workspace overview](docs/screenshots/overview.jpg)
-
 Four-finger left/right switches workspaces on the display under the
 cursor (empty ones included, wrap-around). Swipe up is the overview:
 live preview cards, type-to-search, drag to reorder. Swipe down or Esc
 closes it. The parking workspace never appears as a card.
 
-![Keybinding cheatsheet](docs/screenshots/cheatsheet.jpg)
+![Keybinding cheatsheet on this machine](docs/screenshots/cheatsheet.jpg)
 
 `Option-K` opens the cheatsheet from
 [`docs/omacosy-键位设置.html`](docs/omacosy-键位设置.html). Type to
