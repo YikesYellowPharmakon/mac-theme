@@ -172,6 +172,134 @@ static NSColor *colorFromARGB(unsigned long v) {
                                alpha:((v >> 24) & 0xff) / 255.0];
 }
 
+// Ghostty paints its themed icon only into its own Dock tile at run time;
+// the icon on disk stays the stock one. This rebuilds it from the same
+// layers in Ghostty's asset catalog with the same blend modes as Ghostty's
+// ColorizedGhosttyIcon, so the capsule matches the system Dock.
+static NSString *const kGhosttyBundleID = @"com.mitchellh.ghostty";
+
+static NSColor *colorFromHex(NSString *text) {
+    NSString *hex = [[text stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet]
+                     stringByReplacingOccurrencesOfString:@"#" withString:@""];
+    if (hex.length != 6) return nil;
+    unsigned int rgb = 0;
+    if (![[NSScanner scannerWithString:hex] scanHexInt:&rgb]) return nil;
+    return colorFromARGB(0xff000000UL | rgb);
+}
+
+static NSArray<NSColor *> *colorsFromHexList(NSArray *items) {
+    NSMutableArray<NSColor *> *colors = [NSMutableArray array];
+    for (id item in items) {
+        NSColor *color = [item isKindOfClass:NSString.class] ? colorFromHex(item) : nil;
+        if (color) [colors addObject:color];
+    }
+    return colors;
+}
+
+// The active theme's ghostty.conf first, so a theme switch shows at once;
+// then the style Ghostty last drew, which it keeps for its Dock plugin.
+static BOOL ghosttyIconStyle(NSArray<NSColor *> **screens, NSColor **ghost, NSString **frame) {
+    NSString *path = [NSHomeDirectory() stringByAppendingPathComponent:@".config/omarchy/current/theme/ghostty.conf"];
+    NSString *text = [NSString stringWithContentsOfFile:path encoding:NSUTF8StringEncoding error:nil];
+    NSMutableDictionary<NSString *, NSString *> *conf = [NSMutableDictionary dictionary];
+    for (NSString *raw in [text componentsSeparatedByString:@"\n"]) {
+        NSRange eq = [raw rangeOfString:@"="];
+        if (eq.location == NSNotFound || [raw hasPrefix:@"#"]) continue;
+        NSCharacterSet *ws = NSCharacterSet.whitespaceCharacterSet;
+        NSString *key = [[raw substringToIndex:eq.location] stringByTrimmingCharactersInSet:ws];
+        conf[key] = [[raw substringFromIndex:eq.location + 1] stringByTrimmingCharactersInSet:ws];
+    }
+    NSString *mode = conf[@"macos-icon"];
+    if (mode && ![mode isEqualToString:@"custom-style"]) return NO;
+    if (mode) {
+        *ghost = colorFromHex(conf[@"macos-icon-ghost-color"] ?: @"");
+        *screens = colorsFromHexList([conf[@"macos-icon-screen-color"] componentsSeparatedByString:@","]);
+        *frame = conf[@"macos-icon-frame"] ?: @"aluminum";
+        if (*ghost && (*screens).count) return YES;
+    }
+    CFPropertyListRef stored = CFPreferencesCopyAppValue(CFSTR("CustomGhosttyIcon2"), (__bridge CFStringRef)kGhosttyBundleID);
+    id data = stored ? CFBridgingRelease(stored) : nil;
+    if (![data isKindOfClass:NSData.class]) return NO;
+    NSDictionary *json = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
+    NSDictionary *custom = [json isKindOfClass:NSDictionary.class] ? json[@"customStyle"] : nil;
+    NSDictionary *style = [custom isKindOfClass:NSDictionary.class] ? custom[@"_0"] : nil;
+    if (![style isKindOfClass:NSDictionary.class]) return NO;
+    id ghostHex = style[@"ghostColor"];
+    id screenHexes = style[@"screenColors"];
+    *ghost = [ghostHex isKindOfClass:NSString.class] ? colorFromHex(ghostHex) : nil;
+    *screens = [screenHexes isKindOfClass:NSArray.class] ? colorsFromHexList(screenHexes) : @[];
+    *frame = [style[@"frame"] isKindOfClass:NSString.class] ? style[@"frame"] : @"aluminum";
+    return *ghost && (*screens).count;
+}
+
+static CGContextRef iconCanvas(size_t side, CGColorSpaceRef space) {
+    return CGBitmapContextCreate(NULL, side, side, 8, 0, space, (CGBitmapInfo)kCGImageAlphaPremultipliedLast);
+}
+
+static NSImage *ghosttyStyledIcon(NSURL *appURL) {
+    NSArray<NSColor *> *screens = nil;
+    NSColor *ghostColor = nil;
+    NSString *frame = nil;
+    if (!ghosttyIconStyle(&screens, &ghostColor, &frame)) return nil;
+    NSBundle *bundle = [NSBundle bundleWithURL:appURL];
+    NSDictionary *bases = @{@"aluminum": @"CustomIconBaseAluminum", @"beige": @"CustomIconBaseBeige",
+                            @"chrome": @"CustomIconBaseChrome", @"plastic": @"CustomIconBasePlastic"};
+    NSArray<NSString *> *names = @[bases[frame] ?: bases[@"aluminum"], @"CustomIconScreen", @"CustomIconScreenMask",
+                                   @"CustomIconGhost", @"CustomIconCRT", @"CustomIconGloss"];
+    const size_t side = 512;
+    CGRect rect = CGRectMake(0, 0, side, side);
+    NSRect proposed = NSRectFromCGRect(rect);
+    NSMutableArray *layers = [NSMutableArray array];
+    for (NSString *name in names) {
+        CGImageRef image = [[bundle imageForResource:name] CGImageForProposedRect:&proposed context:nil hints:nil];
+        if (!image) return nil;
+        [layers addObject:(__bridge id)image];
+    }
+    CGImageRef base = (__bridge CGImageRef)layers[0], screen = (__bridge CGImageRef)layers[1];
+    CGImageRef mask = (__bridge CGImageRef)layers[2], ghost = (__bridge CGImageRef)layers[3];
+    CGImageRef crt = (__bridge CGImageRef)layers[4], gloss = (__bridge CGImageRef)layers[5];
+    CGColorSpaceRef space = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
+
+    CGContextRef ctx = iconCanvas(side, space);
+    CGContextDrawImage(ctx, rect, mask);
+    CGContextSetBlendMode(ctx, kCGBlendModeSourceAtop);
+    NSMutableArray *stops = [NSMutableArray array];
+    for (NSColor *color in screens) [stops addObject:(__bridge id)color.CGColor];
+    if (stops.count == 1) [stops addObject:stops[0]];
+    CGGradientRef gradient = CGGradientCreateWithColors(space, (__bridge CFArrayRef)stops, NULL);
+    CGContextDrawLinearGradient(ctx, gradient, CGPointMake(0, 0), CGPointMake(0, side), 0);
+    CGGradientRelease(gradient);
+    CGImageRef screenTint = CGBitmapContextCreateImage(ctx);
+    CGContextRelease(ctx);
+
+    ctx = iconCanvas(side, space);
+    CGContextDrawImage(ctx, rect, ghost);
+    CGContextSetBlendMode(ctx, kCGBlendModeSourceAtop);
+    CGContextSetFillColorWithColor(ctx, ghostColor.CGColor);
+    CGContextFillRect(ctx, rect);
+    CGImageRef ghostTint = CGBitmapContextCreateImage(ctx);
+    CGContextRelease(ctx);
+
+    ctx = iconCanvas(side, space);
+    CGImageRef stack[] = {base, screen, screenTint, ghost, ghostTint, crt, gloss};
+    CGBlendMode modes[] = {kCGBlendModeNormal, kCGBlendModeNormal, kCGBlendModeColor, kCGBlendModeNormal,
+                           kCGBlendModeColor, kCGBlendModeOverlay, kCGBlendModeNormal};
+    for (int i = 0; i < 7; i++) {
+        if (!stack[i]) continue;
+        CGContextSetBlendMode(ctx, modes[i]);
+        CGContextDrawImage(ctx, rect, stack[i]);
+    }
+    CGImageRef composed = CGBitmapContextCreateImage(ctx);
+    CGContextRelease(ctx);
+    CGImageRelease(screenTint);
+    CGImageRelease(ghostTint);
+    CGColorSpaceRelease(space);
+    if (!composed) return nil;
+    NSImage *icon = [[NSImage alloc] initWithCGImage:composed size:NSMakeSize(side / 2.0, side / 2.0)];
+    CGImageRelease(composed);
+    return icon;
+}
+
 static BOOL appHasVisibleWindow(pid_t pid) {
     CFArrayRef list = CGWindowListCopyWindowInfo(kCGWindowListOptionOnScreenOnly | kCGWindowListExcludeDesktopElements, kCGNullWindowID);
     if (!list) return NO;
@@ -665,6 +793,11 @@ static void collectTabs(AXUIElementRef element, int depth, BOOL inTabs, NSMutabl
         DockController *self_ = weakSelf;
         if (!self_) return;
         [self_ loadPalette];
+        [self_ refreshGhosttyIcon];
+        // theme-set relinks the theme before it finishes writing ghostty.conf.
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            [weakSelf refreshGhosttyIcon];
+        });
         if (dispatch_source_get_data(self_->_themeSource) & (DISPATCH_VNODE_DELETE | DISPATCH_VNODE_RENAME)) {
             dispatch_source_cancel(self_->_themeSource);
             close(self_->_themeFD);
@@ -761,11 +894,20 @@ static void collectTabs(AXUIElementRef element, int depth, BOOL inTabs, NSMutabl
     return bid.length ? bid : nil;
 }
 
+- (void)refreshGhosttyIcon {
+    for (NSString *key in _icons.allKeys) {
+        if ([_bundleIDs[key] isEqualToString:kGhosttyBundleID]) [_icons removeObjectForKey:key];
+    }
+    [self appsChanged:nil];
+}
+
 - (NSImage *)iconForURL:(NSURL *)url {
     NSString *key = normPath(url.path);
     NSImage *cached = _icons[key];
     if (cached) return cached;
-    NSImage *image = [NSWorkspace.sharedWorkspace iconForFile:url.path];
+    NSImage *image = nil;
+    if ([[self bundleIDForURL:url] isEqualToString:kGhosttyBundleID]) image = ghosttyStyledIcon(url);
+    if (!image) image = [NSWorkspace.sharedWorkspace iconForFile:url.path];
     image.template = NO;
     if (image) _icons[key] = image;
     return image;
