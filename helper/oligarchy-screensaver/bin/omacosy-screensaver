@@ -149,14 +149,23 @@ while true; do
   reuse=(--reuse-canvas)
   echo "$(date) start effect=$current stty=$(stty size 2>/dev/null)" >>"$LOG"
   started=$SECONDS
+  instant_fails=0
   while kill -0 "$TPID" 2>/dev/null; do
-    rc=0
-    read -r -n1 -t 1 || rc=$?
-    # 0 is a key press. 1..128 is end of input: the terminal is gone.
-    # Above 128 is the one-second timeout.
-    if [ "$rc" -le 128 ]; then
+    asked=$SECONDS
+    if read -r -n1 -t 1; then
       trap - EXIT
       exit_screensaver
+    fi
+    # /bin/bash 3.2 returns 1 for both the timeout and end of input.
+    # A timeout waits the full second; a terminal that is gone answers
+    # at once, every time.
+    if [ "$SECONDS" -eq "$asked" ]; then
+      instant_fails=$((instant_fails + 1))
+      if [ "$instant_fails" -ge 20 ]; then
+        exit_screensaver
+      fi
+    else
+      instant_fails=0
     fi
   done
   wait "$TPID" 2>/dev/null || true
