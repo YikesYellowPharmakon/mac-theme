@@ -99,20 +99,19 @@ if _G.omacosy_cursor and _G.omacosy_cursor.timer then
   end)
 end
 _G.omacosy_cursor = { token = 0 }
-local shades = { "#bd4924", "#df782d", "#fd6883" }
+local shades = { "#bd4924", "#df782d", "#fd6883", "#f9cc6c" }
 local linebg = "#2c1303"
 local cursorfg = "#e7aa5a"
 local kind = "beacon"
 local group = vim.api.nvim_create_augroup("omacosy-cursor", { clear = true })
-if kind == "pulse" then
-  local i = 0
-  local timer = vim.uv.new_timer()
-  _G.omacosy_cursor.timer = timer
-  timer:start(0, 680, vim.schedule_wrap(function()
-    i = (i % #shades) + 1
-    vim.api.nvim_set_hl(0, "Cursor", { fg = cursorfg, bg = shades[i] })
-  end))
-elseif kind == "trail" then
+local i = 0
+local timer = vim.uv.new_timer()
+_G.omacosy_cursor.timer = timer
+timer:start(0, 680, vim.schedule_wrap(function()
+  i = (i % #shades) + 1
+  vim.api.nvim_set_hl(0, "Cursor", { fg = cursorfg, bg = shades[i] })
+end))
+if kind == "trail" then
   local ns = vim.api.nvim_create_namespace("omacosy-cursor")
   local marks = {}
   vim.api.nvim_set_hl(0, "OmacosyTrail1", { fg = shades[1], bold = true })
@@ -149,7 +148,7 @@ elseif kind == "beacon" then
       vim.defer_fn(function() pcall(vim.fn.matchdelete, id) end, 160)
     end,
   })
-else
+elseif kind == "glide" then
   vim.api.nvim_create_autocmd("CursorMoved", {
     group = group,
     callback = function()

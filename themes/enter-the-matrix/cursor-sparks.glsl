@@ -72,9 +72,9 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
 
     float elapsed = iTime - iTimeCursorChange;
 
-    float duration = 0.2;
+    float duration = 0.34;
     float fadeInTime = 0.06;
-    float fadeOutTime = 0.1;
+    float fadeOutTime = 0.18;
     float fadeIn = smoothstep(0.0, fadeInTime, elapsed);
     float fadeOut = 1.0 - smoothstep(duration - fadeOutTime, duration, elapsed);
     float fade = clamp(fadeIn * fadeOut, 0.0, 1.0);

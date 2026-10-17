@@ -65,7 +65,7 @@ float ease(float x) {
     return pow(1.0 - x, 3.0);
 }
 
-const float TAIL_STRETCH = 2.0;
+const float TAIL_STRETCH = 6.0;
 
 vec2 screenExit(vec2 from, vec2 dir) {
     vec2 d = dir;
@@ -79,7 +79,7 @@ vec2 screenExit(vec2 from, vec2 dir) {
 
 const vec4 TRAIL_COLOR = vec4(0.8745, 0.4706, 0.1765, 1.0); // omacosy-body
 const vec4 TRAIL_COLOR_ACCENT = vec4(0.4784, 0.2588, 0.0941, 1.0); // omacosy-edge
-const float DURATION = 0.3; //IN SECONDS
+const float DURATION = 0.42; //IN SECONDS
 
 void mainImage(out vec4 fragColor, in vec2 fragCoord)
 {

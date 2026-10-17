@@ -1126,6 +1126,15 @@ _THEME_ROLES: dict[str, dict[str, str]] = {
         "constant": "#fd6883",
         "accent": "#bd4924",
     },
+    "no-bad-memories": {
+        "keyword": "#E5281A",
+        "string": "#E3CB15",
+        "function": "#05ADCD",
+        "type": "#3FBF4A",
+        "number": "#E58B42",
+        "constant": "#A82CB8",
+        "accent": "#E5281A",
+    },
 }
 
 
@@ -1296,7 +1305,10 @@ def render_neovim(colors: dict[str, str]) -> str:
 
 
 def _cursor_effect_lua(theme: str, roles: dict[str, str], line_bg: str, cursor_fg: str) -> list[str]:
-    """One cursor motion per theme. Resourcing stops the previous timer."""
+    """Every theme cycles the cursor through its own colors; some add a motion.
+
+    Resourcing stops the previous timer.
+    """
     accent, string, function, kind = roles["accent"], roles["string"], roles["function"], "pulse"
     shape = "n-v-c:ver25-Cursor,i-ci-ve:ver25-Cursor,r-cr:hor20-Cursor"
     if theme == "enter-the-matrix":
@@ -1305,7 +1317,10 @@ def _cursor_effect_lua(theme: str, roles: dict[str, str], line_bg: str, cursor_f
         kind, shape = "beacon", "n-v-c:block-Cursor,i-ci-ve:ver30-Cursor"
     elif theme == "azure":
         kind, shape = "glide", "n-v-c:ver30-Cursor,i-ci-ve:ver30-Cursor,r-cr:hor20-Cursor"
-    shades = [accent, string, function]
+    shades: list[str] = []
+    for item in (accent, string, function, roles["type"]):
+        if all(item.lower() != prev.lower() for prev in shades):
+            shades.append(item)
     shade_lua = ", ".join(f'"{item}"' for item in shades)
     return [
         f'vim.o.guicursor = "{shape}"',
@@ -1321,15 +1336,14 @@ def _cursor_effect_lua(theme: str, roles: dict[str, str], line_bg: str, cursor_f
         f'local cursorfg = "{cursor_fg}"',
         f'local kind = "{kind}"',
         'local group = vim.api.nvim_create_augroup("omacosy-cursor", { clear = true })',
-        "if kind == \"pulse\" then",
-        "  local i = 0",
-        "  local timer = vim.uv.new_timer()",
-        "  _G.omacosy_cursor.timer = timer",
-        "  timer:start(0, 680, vim.schedule_wrap(function()",
-        "    i = (i % #shades) + 1",
-        "    vim.api.nvim_set_hl(0, \"Cursor\", { fg = cursorfg, bg = shades[i] })",
-        "  end))",
-        "elseif kind == \"trail\" then",
+        "local i = 0",
+        "local timer = vim.uv.new_timer()",
+        "_G.omacosy_cursor.timer = timer",
+        "timer:start(0, 680, vim.schedule_wrap(function()",
+        "  i = (i % #shades) + 1",
+        "  vim.api.nvim_set_hl(0, \"Cursor\", { fg = cursorfg, bg = shades[i] })",
+        "end))",
+        "if kind == \"trail\" then",
         "  local ns = vim.api.nvim_create_namespace(\"omacosy-cursor\")",
         "  local marks = {}",
         "  vim.api.nvim_set_hl(0, \"OmacosyTrail1\", { fg = shades[1], bold = true })",
@@ -1366,7 +1380,7 @@ def _cursor_effect_lua(theme: str, roles: dict[str, str], line_bg: str, cursor_f
         "      vim.defer_fn(function() pcall(vim.fn.matchdelete, id) end, 160)",
         "    end,",
         "  })",
-        "else",
+        "elseif kind == \"glide\" then",
         "  vim.api.nvim_create_autocmd(\"CursorMoved\", {",
         "    group = group,",
         "    callback = function()",
@@ -1737,16 +1751,37 @@ def _replace_marked(text: str, marker: str, line: str) -> str:
     return "\n".join(out) + "\n"
 
 
+# Per theme, a layer can be replaced by a shader that brings its own
+# colors. It is copied as is, without the theme tint.
+CURSOR_LAYER_SWAPS = {
+    "no-bad-memories": {
+        "cursor_smear_gradient.glsl": ("cursor_smear_rainbow.glsl", "cursor-smear-rainbow.glsl"),
+        "sparks.glsl": ("sparks_rainbow.glsl", "cursor-sparks-rainbow.glsl"),
+    },
+}
+
+# Per theme, a halo color per layer in place of the darker body color.
+CURSOR_EDGES = {
+    "no-bad-memories": {
+        "cursor_frozen.glsl": "#A82CB8",
+        "cursor_blaze_tapered.glsl": "#E5281A",
+    },
+}
+
+
 def write_cursor_stack(theme_dir: Path, colors: dict[str, str]) -> list[Path]:
     """Four playground shaders, each tinted with one color from this theme.
 
     Bottom to top: frozen, tapered blaze, smear gradient, sparks.
     The colors are the theme's own function, string, keyword, and type.
     A long cursor jump extends those trails to the screen edge.
+    CURSOR_LAYER_SWAPS can replace a layer for one theme.
     """
     roles = _paint_roles(colors)
     share = Path(__file__).resolve().parent.parent / "share" / "cursor"
     paths: list[Path] = []
+    swaps = CURSOR_LAYER_SWAPS.get(theme_dir.name, {})
+    edges = CURSOR_EDGES.get(theme_dir.name, {})
     layers = (
         ("cursor_frozen.glsl", "cursor-frozen.glsl", roles["function"]),
         ("cursor_blaze_tapered.glsl", "cursor-blaze-tapered.glsl", roles["string"]),
@@ -1754,6 +1789,13 @@ def write_cursor_stack(theme_dir: Path, colors: dict[str, str]) -> list[Path]:
         ("sparks.glsl", "cursor-sparks.glsl", roles["type"]),
     )
     for source_name, dest_name, color in layers:
+        if source_name in swaps:
+            swap_source, swap_dest = swaps[source_name]
+            dest = theme_dir / swap_dest
+            dest.write_text((share / swap_source).read_text(encoding="utf-8"), encoding="utf-8")
+            (theme_dir / dest_name).unlink(missing_ok=True)
+            paths.append(dest)
+            continue
         text = (share / source_name).read_text(encoding="utf-8")
         if source_name == "cursor_smear_gradient.glsl":
             light = mix_hex(color, "#ffffff", 0.42)
@@ -1772,7 +1814,7 @@ def write_cursor_stack(theme_dir: Path, colors: dict[str, str]) -> list[Path]:
             text = _replace_marked(
                 text,
                 "omacosy-edge",
-                f"const vec4 TRAIL_COLOR_ACCENT = {_vec4(_scale_hex(color, 0.55))}; // omacosy-edge",
+                f"const vec4 TRAIL_COLOR_ACCENT = {_vec4(edges.get(source_name) or _scale_hex(color, 0.55))}; // omacosy-edge",
             )
         dest = theme_dir / dest_name
         dest.write_text(text, encoding="utf-8")
@@ -1811,6 +1853,13 @@ def patch_ghostty_cursor(text: str, shader_paths: list[Path]) -> str:
     return "\n".join(out) + "\n"
 
 
+# Dark, quiet wallpapers barely show through 0.9, so these themes open up more.
+GHOSTTY_OPACITY = {
+    "enter-the-matrix": 0.8,
+    "snow-black": 0.8,
+}
+
+
 def write_sidecars(theme_dir: Path, colors: dict[str, str] | None = None) -> dict[str, str]:
     if colors is None:
         colors = normalize(parse_colors(theme_dir / "colors.toml"))
@@ -1841,6 +1890,19 @@ def write_sidecars(theme_dir: Path, colors: dict[str, str] | None = None) -> dic
     # still well under the label.
     lift = 0.62 if theme_dir.name == "snow-black" else 0.42
     muted_bar = mix_hex(muted_bar, "#cfd3d6", lift)
+    bar_red = punch_on(colors["color1"], bg)
+    bar_green = punch_on(colors["color2"], bg)
+    bar_yellow = punch_on(colors["color3"], bg)
+    if theme_dir.name == "no-bad-memories":
+        # Lacquer-red pills. The theme red would vanish on them, so the
+        # glyphs, the active chip and the low-battery mark turn cream.
+        item_bg = "#E0140C"
+        accent_bar = "#FFF3E8"
+        icon_bar = "#FFF3E8"
+        muted_bar = "#FFC2B8"
+        bar_red = "#FFF3E8"
+        bar_green = "#9CF25A"
+        bar_yellow = "#FFE45C"
     (theme_dir / "sketchybar.sh").write_text(
         "#!/usr/bin/env bash\n"
         f"export BAR_COLOR={argb(bg, 'e6')}\n"
@@ -1850,9 +1912,9 @@ def write_sidecars(theme_dir: Path, colors: dict[str, str] | None = None) -> dic
         f"export LABEL_COLOR={argb(fg)}\n"
         f"export ICON_COLOR={argb(icon_bar)}\n"
         f"export MUTED={argb(muted_bar)}\n"
-        f"export RED={argb(punch_on(colors['color1'], bg))}\n"
-        f"export GREEN={argb(punch_on(colors['color2'], bg))}\n"
-        f"export YELLOW={argb(punch_on(colors['color3'], bg))}\n",
+        f"export RED={argb(bar_red)}\n"
+        f"export GREEN={argb(bar_green)}\n"
+        f"export YELLOW={argb(bar_yellow)}\n",
         encoding="utf-8",
     )
     ink = ansi_palette(colors)
@@ -1884,7 +1946,7 @@ def write_sidecars(theme_dir: Path, colors: dict[str, str] | None = None) -> dic
         f"cursor-text = {cursor_fg.lstrip('#')}",
         f"selection-background = {sel.lstrip('#')}",
         f"selection-foreground = {sel_fg.lstrip('#')}",
-        "background-opacity = 0.9",
+        f"background-opacity = {GHOSTTY_OPACITY.get(theme_dir.name, 0.9)}",
         "background-blur = true",
         "window-padding-x = 8",
         "window-padding-y = 6",

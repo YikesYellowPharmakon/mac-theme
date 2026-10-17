@@ -7,6 +7,8 @@ config/aerospace/aerospace.toml
 **/__pycache__/
 *.pyc
 signing/
+# Built from MV frames and album covers; stays local.
+themes/no-bad-memories/backgrounds/
 *.p12
 bin/omacosy-leave-fs-space
 helper/oligarchy-screensaver/bin/omacosy-ss-guard

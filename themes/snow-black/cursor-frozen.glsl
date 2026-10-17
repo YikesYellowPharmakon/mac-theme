@@ -71,7 +71,7 @@ float ease(float x) {
 
 // Everyday tails reach this multiple of the move. A sudden jump
 // keeps going until it leaves the screen, in the same direction.
-const float TAIL_STRETCH = 2.0;
+const float TAIL_STRETCH = 6.0;
 
 vec2 screenExit(vec2 from, vec2 dir) {
     vec2 d = dir;
@@ -85,7 +85,7 @@ vec2 screenExit(vec2 from, vec2 dir) {
 
 const vec4 TRAIL_COLOR = vec4(0.3725, 0.5294, 0.5294, 1.0); // omacosy-body
 const vec4 TRAIL_COLOR_ACCENT = vec4(0.2039, 0.2902, 0.2902, 1.0); // omacosy-edge
-const float DURATION = 0.3; //IN SECONDS
+const float DURATION = 0.42; //IN SECONDS
 
 void mainImage(out vec4 fragColor, in vec2 fragCoord)
 {
