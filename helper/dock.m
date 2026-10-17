@@ -196,9 +196,7 @@ static NSArray<NSColor *> *colorsFromHexList(NSArray *items) {
     return colors;
 }
 
-// The active theme's ghostty.conf first, so a theme switch shows at once;
-// then the style Ghostty last drew, which it keeps for its Dock plugin.
-static BOOL ghosttyIconStyle(NSArray<NSColor *> **screens, NSColor **ghost, NSString **frame) {
+static NSDictionary<NSString *, NSString *> *ghosttyThemeConf(void) {
     NSString *path = [NSHomeDirectory() stringByAppendingPathComponent:@".config/omarchy/current/theme/ghostty.conf"];
     NSString *text = [NSString stringWithContentsOfFile:path encoding:NSUTF8StringEncoding error:nil];
     NSMutableDictionary<NSString *, NSString *> *conf = [NSMutableDictionary dictionary];
@@ -209,6 +207,23 @@ static BOOL ghosttyIconStyle(NSArray<NSColor *> **screens, NSColor **ghost, NSSt
         NSString *key = [[raw substringToIndex:eq.location] stringByTrimmingCharactersInSet:ws];
         conf[key] = [[raw substringFromIndex:eq.location + 1] stringByTrimmingCharactersInSet:ws];
     }
+    return conf;
+}
+
+// Ghostty's built-in macos-icon styles and their images in its asset catalog.
+static NSString *ghosttyNamedAsset(NSString *mode) {
+    NSDictionary<NSString *, NSString *> *assets = @{
+        @"blueprint": @"BlueprintImage", @"chalkboard": @"ChalkboardImage", @"glass": @"GlassImage",
+        @"holographic": @"HolographicImage", @"microchip": @"MicrochipImage", @"paper": @"PaperImage",
+        @"retro": @"RetroImage", @"xray": @"XrayImage",
+    };
+    return mode ? assets[mode] : nil;
+}
+
+// The active theme's ghostty.conf first, so a theme switch shows at once;
+// then the style Ghostty last drew, which it keeps for its Dock plugin.
+static BOOL ghosttyIconStyle(NSDictionary<NSString *, NSString *> *conf, NSArray<NSColor *> **screens,
+                             NSColor **ghost, NSString **frame) {
     NSString *mode = conf[@"macos-icon"];
     if (mode && ![mode isEqualToString:@"custom-style"]) return NO;
     if (mode) {
@@ -237,11 +252,14 @@ static CGContextRef iconCanvas(size_t side, CGColorSpaceRef space) {
 }
 
 static NSImage *ghosttyStyledIcon(NSURL *appURL) {
+    NSDictionary<NSString *, NSString *> *conf = ghosttyThemeConf();
+    NSBundle *bundle = [NSBundle bundleWithURL:appURL];
+    NSString *asset = ghosttyNamedAsset(conf[@"macos-icon"]);
+    if (asset) return [bundle imageForResource:asset];
     NSArray<NSColor *> *screens = nil;
     NSColor *ghostColor = nil;
     NSString *frame = nil;
-    if (!ghosttyIconStyle(&screens, &ghostColor, &frame)) return nil;
-    NSBundle *bundle = [NSBundle bundleWithURL:appURL];
+    if (!ghosttyIconStyle(conf, &screens, &ghostColor, &frame)) return nil;
     NSDictionary *bases = @{@"aluminum": @"CustomIconBaseAluminum", @"beige": @"CustomIconBaseBeige",
                             @"chrome": @"CustomIconBaseChrome", @"plastic": @"CustomIconBasePlastic"};
     NSArray<NSString *> *names = @[bases[frame] ?: bases[@"aluminum"], @"CustomIconScreen", @"CustomIconScreenMask",
@@ -298,6 +316,31 @@ static NSImage *ghosttyStyledIcon(NSURL *appURL) {
     NSImage *icon = [[NSImage alloc] initWithCGImage:composed size:NSMakeSize(side / 2.0, side / 2.0)];
     CGImageRelease(composed);
     return icon;
+}
+
+// The bar's workspace chips read this copy: a running app reports only its
+// bundle icon, not the style Ghostty draws for itself. Removed when Ghostty
+// uses its stock icon, so the bar falls back to that.
+static void exportGhosttyIcon(NSImage *icon) {
+    NSString *dir = [NSHomeDirectory() stringByAppendingPathComponent:@".local/state/omacosy"];
+    NSString *path = [dir stringByAppendingPathComponent:@"ghostty-icon.png"];
+    NSData *png = nil;
+    if (icon) {
+        NSBitmapImageRep *rep = [[NSBitmapImageRep alloc] initWithBitmapDataPlanes:NULL pixelsWide:256 pixelsHigh:256
+                                                                     bitsPerSample:8 samplesPerPixel:4 hasAlpha:YES isPlanar:NO
+                                                                    colorSpaceName:NSDeviceRGBColorSpace bytesPerRow:0 bitsPerPixel:0];
+        [NSGraphicsContext saveGraphicsState];
+        NSGraphicsContext.currentContext = [NSGraphicsContext graphicsContextWithBitmapImageRep:rep];
+        [icon drawInRect:NSMakeRect(0, 0, 256, 256)];
+        [NSGraphicsContext restoreGraphicsState];
+        png = [rep representationUsingType:NSBitmapImageFileTypePNG properties:@{}];
+    }
+    if (png) {
+        [NSFileManager.defaultManager createDirectoryAtPath:dir withIntermediateDirectories:YES attributes:nil error:nil];
+        [png writeToFile:path atomically:YES];
+    } else {
+        [NSFileManager.defaultManager removeItemAtPath:path error:nil];
+    }
 }
 
 static BOOL appHasVisibleWindow(pid_t pid) {
@@ -735,6 +778,7 @@ static void collectTabs(AXUIElementRef element, int depth, BOOL inTabs, NSMutabl
 - (void)start {
     [self loadPalette];
     [self watchTheme];
+    [self refreshGhosttyIcon];
     [self buildDock];
     [self rebuildStrips];
     [self burySystemDock];
@@ -898,6 +942,9 @@ static void collectTabs(AXUIElementRef element, int depth, BOOL inTabs, NSMutabl
     for (NSString *key in _icons.allKeys) {
         if ([_bundleIDs[key] isEqualToString:kGhosttyBundleID]) [_icons removeObjectForKey:key];
     }
+    // The bar reads the exported PNG, and appsChanged draws nothing while the dock is hidden.
+    NSURL *ghostty = [NSWorkspace.sharedWorkspace URLForApplicationWithBundleIdentifier:kGhosttyBundleID];
+    if (ghostty) [self iconForURL:ghostty];
     [self appsChanged:nil];
 }
 
@@ -906,7 +953,10 @@ static void collectTabs(AXUIElementRef element, int depth, BOOL inTabs, NSMutabl
     NSImage *cached = _icons[key];
     if (cached) return cached;
     NSImage *image = nil;
-    if ([[self bundleIDForURL:url] isEqualToString:kGhosttyBundleID]) image = ghosttyStyledIcon(url);
+    if ([[self bundleIDForURL:url] isEqualToString:kGhosttyBundleID]) {
+        image = ghosttyStyledIcon(url);
+        exportGhosttyIcon(image);
+    }
     if (!image) image = [NSWorkspace.sharedWorkspace iconForFile:url.path];
     image.template = NO;
     if (image) _icons[key] = image;

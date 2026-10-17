@@ -1859,6 +1859,30 @@ GHOSTTY_OPACITY = {
     "snow-black": 0.8,
 }
 
+# Ghostty's built-in macos-icon styles, by theme.
+GHOSTTY_ICONS = {
+    "no-bad-memories": "holographic",
+    "enter-the-matrix": "retro",
+    "snow-black": "xray",
+    "azure": "paper",
+}
+# custom-style icons drawn from a theme's palette. Screen colors run bottom to top.
+GHOSTTY_CUSTOM_ICONS = {
+    "space-monkey": {"frame": "beige", "ghost": "#f9cc6c", "screen": ("#1c0e00", "#bd4924")},
+}
+
+
+def ghostty_icon_lines(theme: str, vivid: str, bg: str) -> list[str]:
+    if theme in GHOSTTY_ICONS:
+        return [f"macos-icon = {GHOSTTY_ICONS[theme]}"]
+    style = GHOSTTY_CUSTOM_ICONS.get(theme, {"ghost": vivid, "screen": (bg,)})
+    lines = ["macos-icon = custom-style"]
+    if "frame" in style:
+        lines.append(f"macos-icon-frame = {style['frame']}")
+    lines.append(f"macos-icon-ghost-color = {style['ghost'].lstrip('#')}")
+    lines.append(f"macos-icon-screen-color = {','.join(c.lstrip('#') for c in style['screen'])}")
+    return lines
+
 
 def write_sidecars(theme_dir: Path, colors: dict[str, str] | None = None) -> dict[str, str]:
     if colors is None:
@@ -1960,9 +1984,7 @@ def write_sidecars(theme_dir: Path, colors: dict[str, str] | None = None) -> dic
         f"split-divider-color = {split.lstrip('#')}",
         f"unfocused-split-fill = {mix_hex(bg, vivid, 0.28).lstrip('#')}",
         "unfocused-split-opacity = 0.92",
-        "macos-icon = custom-style",
-        f"macos-icon-ghost-color = {vivid.lstrip('#')}",
-        f"macos-icon-screen-color = {bg.lstrip('#')}",
+        *ghostty_icon_lines(theme_dir.name, vivid, bg),
     ]
     ghost.extend(f"palette = {i}={swatch.lstrip('#')}" for i, swatch in enumerate(palette_256(colors)))
     (theme_dir / "ghostty.conf").write_text("\n".join(ghost) + "\n", encoding="utf-8")

@@ -2692,7 +2692,21 @@ func drawText(_ s: String, _ font: NSFont, _ color: NSColor, leftAt x: CGFloat, 
 // Icons come from the running app and are cached by name: a redraw must
 // not walk the process list.
 var iconCache: [String: NSImage] = [:]
+// The dock leaves Ghostty's themed icon here; the running app reports only
+// its bundle icon. Reloaded when the file changes, dropped when it goes.
+let ghosttyIconPath = NSHomeDirectory() + "/.local/state/omacosy/ghostty-icon.png"
+var ghosttyIconStamp: Date?
 func appIcon(_ name: String) -> NSImage? {
+    if name == "Ghostty" {
+        let stamp = (try? FileManager.default.attributesOfItem(atPath: ghosttyIconPath))?[.modificationDate] as? Date
+        if stamp != ghosttyIconStamp {
+            ghosttyIconStamp = stamp
+            iconCache[name] = nil
+        }
+        if stamp != nil, iconCache[name] == nil {
+            iconCache[name] = NSImage(contentsOfFile: ghosttyIconPath)
+        }
+    }
     if let cached = iconCache[name] { return cached }
     guard let icon = NSWorkspace.shared.runningApplications
         .first(where: { $0.localizedName == name })?.icon else { return nil }
@@ -3818,7 +3832,10 @@ let notify: NotifyProc = { event, _, _, _ in
         if event == EVENT_WINDOW_CREATE || event == EVENT_WINDOW_DESTROY {
             kickRebuild()
             rebuildSubscriptions()
-        } else if event == EVENT_WINDOW_ORDER || event == EVENT_WINDOW_VISIBILITY {
+        } else if event == EVENT_WINDOW_ORDER || event == EVENT_WINDOW_VISIBILITY
+                    || event == EVENT_WINDOW_MOVE {
+            // AeroSpace's move-node-to-workspace parks the window off
+            // screen without ordering it out: only 806 reports it.
             // the chips are only as fresh as this: a window changing
             // workspace shows up here and nowhere else. A plain
             // workspace switch lands here too and fetches a snapshot
@@ -3862,6 +3879,8 @@ watch(FileManager.default.homeDirectoryForCurrentUser
     }
     if openPopup != nil { refreshPopup() }
     repaint()
+    // The dock redraws Ghostty's icon again 1.5 s on, once ghostty.conf is written.
+    DispatchQueue.main.asyncAfter(deadline: .now() + 3) { repaint() }
     if cheatWindow != nil { hideCheatsheet() }
     let ms = Double(DispatchTime.now().uptimeNanoseconds - t0) / 1_000_000
     tlog(String(format: "theme %.2f ms", ms))
