@@ -78,6 +78,10 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     float fadeIn = smoothstep(0.0, fadeInTime, elapsed);
     float fadeOut = 1.0 - smoothstep(duration - fadeOutTime, duration, elapsed);
     float fade = clamp(fadeIn * fadeOut, 0.0, 1.0);
+    // Ghostty redraws every frame. After the burst, or past the farthest a
+    // spark can fly (about 133 px), nothing is added, so skip the loop.
+    vec2 cursorPx = iCurrentCursor.xy + vec2(iCurrentCursor.z, -iCurrentCursor.w) * 0.5;
+    if (elapsed >= duration || distance(fragCoord, cursorPx) > 160.0) return;
 
     vec2 center = norm(iCurrentCursor.xy, 1.);
     vec2 vu = norm(fragCoord, 1.);

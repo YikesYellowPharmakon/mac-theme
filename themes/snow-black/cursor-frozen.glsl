@@ -90,6 +90,8 @@ const float DURATION = 0.42; //IN SECONDS
 void mainImage(out vec4 fragColor, in vec2 fragCoord)
 {
     fragColor = texture(iChannel0, fragCoord.xy / iResolution.xy);
+    // Ghostty redraws every frame; once the trail is over this pixel is unchanged.
+    if (iTime - iTimeCursorChange >= DURATION) return;
     // Normalization for fragCoord to a space of -1 to 1;
     vec2 vu = norm(fragCoord, 1.);
     vec2 offsetFactor = vec2(-.5, 0.5);
