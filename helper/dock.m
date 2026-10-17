@@ -467,7 +467,29 @@ static BOOL aerospaceWorkspaceOnlyHolds(NSString *ws, pid_t pid) {
 // workspace instead of pulling the user back to where it was hidden. A
 // window already here wins over one elsewhere, and clicking the app that
 // is already focused steps through its windows.
+// Window ids of the app's windows that can be seen. VPN apps close their
+// UI by shrinking a window to nothing rather than destroying it, and a
+// click focusing that leaves the user looking at nothing; omacosy-arrange
+// floats the same windows by the same test. nil when the window server
+// does not answer, so nothing is filtered.
+static NSSet<NSString *> *visibleWindowIDs(pid_t pid) {
+    CFArrayRef raw = CGWindowListCopyWindowInfo(kCGWindowListOptionAll, kCGNullWindowID);
+    if (!raw) return nil;
+    NSMutableSet<NSString *> *ids = [NSMutableSet set];
+    for (NSDictionary *window in (__bridge NSArray *)raw) {
+        if ([window[(id)kCGWindowOwnerPID] intValue] != pid) continue;
+        CGRect bounds = CGRectZero;
+        CGRectMakeWithDictionaryRepresentation((__bridge CFDictionaryRef)window[(id)kCGWindowBounds], &bounds);
+        NSNumber *alpha = window[(id)kCGWindowAlpha];
+        if (bounds.size.width < 8 || bounds.size.height < 8 || (alpha && alpha.doubleValue < 0.05)) continue;
+        [ids addObject:[window[(id)kCGWindowNumber] stringValue]];
+    }
+    CFRelease(raw);
+    return ids;
+}
+
 static NSString *aerospaceClickTarget(pid_t pid, BOOL hidden) {
+    NSSet<NSString *> *visible = visibleWindowIDs(pid);
     NSString *here = aerospace(@[@"list-workspaces", @"--focused"]);
     NSString *focused = aerospace(@[@"list-windows", @"--focused", @"--format", @"%{window-id}"]);
     NSString *list = aerospace(@[@"list-windows", @"--monitor", @"all", @"--pid", [NSString stringWithFormat:@"%d", pid],
@@ -480,6 +502,7 @@ static NSString *aerospaceClickTarget(pid_t pid, BOOL hidden) {
     for (NSString *line in [list componentsSeparatedByString:@"\n"]) {
         NSArray<NSString *> *f = [line componentsSeparatedByString:@"|"];
         if (f.count < 3 || !f[0].length) continue;
+        if (visible && ![visible containsObject:f[0]]) continue;
         BOOL parked = [f[1] isEqualToString:kParkWorkspace];
         if (parked || [f[2] isEqualToString:@"macos_native_window_of_hidden_app"]) {
             [hiddenWindows addObject:f[0]];

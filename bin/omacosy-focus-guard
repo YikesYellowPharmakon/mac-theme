@@ -51,7 +51,20 @@ is_fullscreen() {
 # else activated a parked app (Cmd-Tab to an app the dock parked): bring
 # its windows back to the workspace in use, or to an empty one when that
 # is in native fullscreen.
+skip_park() {
+  local ring first last target
+  ring=$(/opt/homebrew/bin/aerospace list-workspaces --monitor focused 2>/dev/null | grep -vx "$PARK")
+  first=$(head -1 <<<"$ring")
+  last=$(tail -1 <<<"$ring")
+  target=$AEROSPACE_PREV_WORKSPACE
+  [ "$target" = "$last" ] && target=$first
+  [ "$target" = "$first" ] && [ "$AEROSPACE_PREV_WORKSPACE" = "$first" ] && target=$last
+  printf '%s' "$target" >"$BOUNCE"
+  exec /opt/homebrew/bin/aerospace workspace "$target"
+}
 if [ "$AEROSPACE_FOCUSED_WORKSPACE" = "$PARK" ]; then
+  # a swipe needs no wait, and every moment here shows the parked windows
+  fresh "$INTENT" && ! fresh "/tmp/omacosy-app-unhidden-$U" && skip_park
   sleep 0.15
   fresh "/tmp/omacosy-app-unhidden-$U" && exit 0
   pid=$(/opt/homebrew/bin/aerospace list-windows --focused --format '%{app-pid}' 2>/dev/null)
@@ -79,14 +92,7 @@ if [ "$AEROSPACE_FOCUSED_WORKSPACE" = "$PARK" ]; then
     /opt/homebrew/bin/aerospace workspace "$dest"
     exec /opt/homebrew/bin/aerospace focus --window-id "$wid"
   fi
-  ring=$(/opt/homebrew/bin/aerospace list-workspaces --monitor focused 2>/dev/null | grep -vx "$PARK")
-  first=$(head -1 <<<"$ring")
-  last=$(tail -1 <<<"$ring")
-  target=$AEROSPACE_PREV_WORKSPACE
-  [ "$target" = "$last" ] && target=$first
-  [ "$target" = "$first" ] && [ "$AEROSPACE_PREV_WORKSPACE" = "$first" ] && target=$last
-  printf '%s' "$target" >"$BOUNCE"
-  exec /opt/homebrew/bin/aerospace workspace "$target"
+  skip_park
 fi
 # never bounce anyone back onto it
 [ "$AEROSPACE_PREV_WORKSPACE" = "$PARK" ] && exit 0

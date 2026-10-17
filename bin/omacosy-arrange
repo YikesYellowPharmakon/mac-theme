@@ -49,7 +49,13 @@ reap_stale_windows() {
   listing="$("$A" list-windows --all --format '%{window-id}|%{app-pid}|%{app-bundle-id}|%{window-layout}' 2>/dev/null || true)"
   [ -n "$listing" ] || return 0
   # python3 -c keeps stdin for the window list. A heredoc would steal it.
-  actions="$(printf '%s\n' "$listing" | python3 -c '
+  # aerospace runs this with launchd's PATH, whose /usr/bin/python3 has no
+  # Quartz, and without Quartz the reap quietly does nothing.
+  local py=python3 p
+  for p in /Library/Frameworks/Python.framework/Versions/Current/bin/python3 /usr/local/bin/python3; do
+    [ -x "$p" ] && { py=$p; break; }
+  done
+  actions="$(printf '%s\n' "$listing" | "$py" -c '
 import os, sys
 try:
     import Quartz
@@ -107,7 +113,8 @@ for line in sys.stdin:
   done <<< "$actions"
 }
 
-reap_stale_windows
+# importing Quartz takes ~200 ms; the tiling below need not wait for it
+reap_stale_windows &
 
 if "$A" list-windows --workspace focused --format '%{window-title}' 2>/dev/null \
     | grep -q 'omacosy-screensaver'; then
