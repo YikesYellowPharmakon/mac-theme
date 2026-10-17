@@ -163,10 +163,19 @@ The rest, including resize mode (`⌥ R`) and service mode
 
 ## Install
 
+Any of the three remotes is the same tree. Clone to
+`~/.local/share/omacosy`:
+
 ```sh
 git clone https://github.com/YikesYellowPharmakon/omacosy.git ~/.local/share/omacosy &&
 cd ~/.local/share/omacosy && ./install.sh
 ```
+
+The same commit is also at
+[omacosy-standalone](https://github.com/YikesYellowPharmakon/omacosy-standalone)
+and [mac-theme](https://github.com/YikesYellowPharmakon/mac-theme)
+(`git clone https://github.com/YikesYellowPharmakon/omacosy-standalone.git`
+or `…/mac-theme.git`, same path).
 
 Clone path matters. Configs are symlinked into the repo, and macOS
 TCC blocks launchd services from `~/Documents`, `~/Desktop`, and
