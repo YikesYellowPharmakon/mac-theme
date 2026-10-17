@@ -372,6 +372,157 @@ static void reopenApp(pid_t pid) {
     AESendMessage(event.aeDesc, NULL, kAENoReply | kAENeverInteract, kAEDefaultTimeout);
 }
 
+static NSString *aerospaceBin(void) {
+    static NSString *bin;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        for (NSString *path in @[@"/opt/homebrew/bin/aerospace", @"/usr/local/bin/aerospace"]) {
+            if ([NSFileManager.defaultManager isExecutableFileAtPath:path]) { bin = path; break; }
+        }
+    });
+    return bin;
+}
+
+static NSString *aerospace(NSArray<NSString *> *args) {
+    NSString *bin = aerospaceBin();
+    if (!bin) return @"";
+    NSTask *task = [NSTask new];
+    task.executableURL = [NSURL fileURLWithPath:bin];
+    task.arguments = args;
+    NSPipe *pipe = [NSPipe pipe];
+    task.standardOutput = pipe;
+    task.standardError = NSFileHandle.fileHandleWithNullDevice;
+    if (![task launchAndReturnError:nil]) return @"";
+    NSData *data = [pipe.fileHandleForReading readDataToEndOfFile];
+    [task waitUntilExit];
+    NSString *out = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding] ?: @"";
+    return [out stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
+}
+
+static BOOL aerospaceManagesWindows(void) {
+    return aerospaceBin()
+        && [NSRunningApplication runningApplicationsWithBundleIdentifier:@"bobko.aerospace"].count > 0
+        && [NSRunningApplication runningApplicationsWithBundleIdentifier:@"com.barut.OmniWM"].count == 0;
+}
+
+// omacosy-bar parks a hidden app's windows here and records where each one
+// came from, as "window-id workspace" lines.
+static NSString *const kParkWorkspace = @"hidden";
+
+static NSString *parkOriginPath(void) {
+    return [NSString stringWithFormat:@"/tmp/omacosy-hidden-origin-%u", getuid()];
+}
+
+static NSMutableDictionary<NSString *, NSString *> *parkOrigins(void) {
+    NSMutableDictionary *origins = [NSMutableDictionary dictionary];
+    NSString *text = [NSString stringWithContentsOfFile:parkOriginPath() encoding:NSUTF8StringEncoding error:nil];
+    for (NSString *line in [text componentsSeparatedByString:@"\n"]) {
+        NSArray<NSString *> *f = [line componentsSeparatedByString:@" "];
+        if (f.count == 2) origins[f[0]] = f[1];
+    }
+    return origins;
+}
+
+static void writeParkOrigins(NSDictionary<NSString *, NSString *> *origins) {
+    NSMutableString *text = [NSMutableString string];
+    for (NSString *wid in origins) [text appendFormat:@"%@ %@\n", wid, origins[wid]];
+    [text writeToFile:parkOriginPath() atomically:YES encoding:NSUTF8StringEncoding error:nil];
+}
+
+static void aerospaceParkApp(pid_t pid) {
+    NSMutableDictionary<NSString *, NSString *> *origins = parkOrigins();
+    NSString *list = aerospace(@[@"list-windows", @"--monitor", @"all", @"--pid",
+                                 [NSString stringWithFormat:@"%d", pid],
+                                 @"--format", @"%{window-id}|%{workspace}"]);
+    for (NSString *line in [list componentsSeparatedByString:@"\n"]) {
+        NSArray<NSString *> *f = [line componentsSeparatedByString:@"|"];
+        if (f.count != 2 || [f[1] isEqualToString:kParkWorkspace]) continue;
+        aerospace(@[@"move-node-to-workspace", @"--window-id", f[0], kParkWorkspace]);
+        origins[f[0]] = f[1];
+    }
+    writeParkOrigins(origins);
+}
+
+static BOOL aerospaceWorkspaceIsFullscreen(NSString *ws) {
+    NSString *list = aerospace(@[@"list-windows", @"--workspace", ws, @"--format",
+                                 @"%{window-layout}|%{window-is-fullscreen}"]);
+    for (NSString *line in [list componentsSeparatedByString:@"\n"]) {
+        if ([line hasPrefix:@"macos_native_fullscreen|"] || [line hasSuffix:@"|true"]) return YES;
+    }
+    return NO;
+}
+
+static BOOL aerospaceWorkspaceOnlyHolds(NSString *ws, pid_t pid) {
+    if (!ws.length) return NO;
+    NSString *list = aerospace(@[@"list-windows", @"--workspace", ws, @"--format", @"%{app-pid}"]);
+    NSString *mine = [NSString stringWithFormat:@"%d", pid];
+    for (NSString *owner in [list componentsSeparatedByString:@"\n"]) {
+        if (owner.length && ![owner isEqualToString:mine]) return NO;
+    }
+    return YES;
+}
+
+// The AeroSpace window a dock click should land on, or nil to leave it to
+// the app's own activation. A hidden app is brought to the current
+// workspace instead of pulling the user back to where it was hidden. A
+// window already here wins over one elsewhere, and clicking the app that
+// is already focused steps through its windows.
+static NSString *aerospaceClickTarget(pid_t pid, BOOL hidden) {
+    NSString *here = aerospace(@[@"list-workspaces", @"--focused"]);
+    NSString *focused = aerospace(@[@"list-windows", @"--focused", @"--format", @"%{window-id}"]);
+    NSString *list = aerospace(@[@"list-windows", @"--monitor", @"all", @"--pid", [NSString stringWithFormat:@"%d", pid],
+                                 @"--format", @"%{window-id}|%{workspace}|%{window-layout}"]);
+    NSMutableDictionary<NSString *, NSString *> *origins = parkOrigins();
+    NSMutableArray<NSString *> *hiddenWindows = [NSMutableArray array];
+    NSString *hiddenHome = nil;
+    NSMutableArray<NSString *> *shown = [NSMutableArray array];
+    NSString *local = nil;
+    for (NSString *line in [list componentsSeparatedByString:@"\n"]) {
+        NSArray<NSString *> *f = [line componentsSeparatedByString:@"|"];
+        if (f.count < 3 || !f[0].length) continue;
+        BOOL parked = [f[1] isEqualToString:kParkWorkspace];
+        if (parked || [f[2] isEqualToString:@"macos_native_window_of_hidden_app"]) {
+            [hiddenWindows addObject:f[0]];
+            if (!hiddenHome) hiddenHome = parked ? origins[f[0]] : f[1];
+        } else if (![f[2] isEqualToString:@"macos_native_minimized"]) {
+            [shown addObject:f[0]];
+            if (!local && here.length && [f[1] isEqualToString:here]) local = f[0];
+        }
+    }
+    if (hiddenWindows.count && here.length) {
+        // A fullscreen workspace is not joined: the app gets a workspace of
+        // its own and the switch there parks the fullscreen window
+        // (omacosy-ws-land), as a click did before hidden apps were summoned.
+        NSString *dest = here;
+        if ([here isEqualToString:kParkWorkspace] || aerospaceWorkspaceIsFullscreen(here)) {
+            dest = aerospaceWorkspaceOnlyHolds(hiddenHome, pid) && ![hiddenHome isEqualToString:here]
+                ? hiddenHome
+                : [[aerospace(@[@"list-workspaces", @"--monitor", @"focused", @"--empty"])
+                      componentsSeparatedByString:@"\n"] firstObject];
+        }
+        for (NSString *wid in hiddenWindows) {
+            if (dest.length) aerospace(@[@"move-node-to-workspace", @"--window-id", wid, dest]);
+            [origins removeObjectForKey:wid];
+        }
+        writeParkOrigins(origins);
+        return hiddenWindows.firstObject;
+    }
+    NSUInteger at = [shown indexOfObject:focused];
+    if (at != NSNotFound) return shown[(at + 1) % shown.count];
+    if (local || !shown.count) return local;
+    // Elsewhere: the app's frontmost window, the one it was last used in.
+    // AeroSpace window ids are CGWindowIDs, and the window list is front to back.
+    NSString *front = shown.firstObject;
+    CFArrayRef raw = CGWindowListCopyWindowInfo(kCGWindowListOptionAll, kCGNullWindowID);
+    for (NSDictionary *window in (__bridge NSArray *)raw) {
+        if ([window[(id)kCGWindowOwnerPID] intValue] != pid) continue;
+        NSString *wid = [window[(id)kCGWindowNumber] stringValue];
+        if ([shown containsObject:wid]) { front = wid; break; }
+    }
+    if (raw) CFRelease(raw);
+    return front;
+}
+
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
 
@@ -1443,11 +1594,30 @@ static id exposeKeyMonitor;
     // openApplicationAtURL returns immediately; the old activate call blocked
     // the click until the target app answered.
     BOOL visible = running && appHasVisibleWindow(running.processIdentifier);
+    if (running && aerospaceManagesWindows()) {
+        pid_t pid = running.processIdentifier;
+        BOOL hidden = running.hidden;
+        dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+            NSString *target = aerospaceClickTarget(pid, hidden);
+            if (target) {
+                aerospace(@[@"focus", @"--window-id", target]);
+                return;
+            }
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [self launchURL:url reopen:!visible];
+            });
+        });
+        return;
+    }
+    [self launchURL:url reopen:!visible];
+}
+
+- (void)launchURL:(NSURL *)url reopen:(BOOL)reopen {
     NSWorkspaceOpenConfiguration *config = [NSWorkspaceOpenConfiguration configuration];
     config.activates = YES;
     config.addsToRecentItems = NO;
     [NSWorkspace.sharedWorkspace openApplicationAtURL:url configuration:config completionHandler:^(NSRunningApplication *app, NSError *error) {
-        if (app && !visible) reopenApp(app.processIdentifier);
+        if (app && reopen) reopenApp(app.processIdentifier);
         if (error) fprintf(stderr, "omacosy-dock: open %s\n", error.localizedDescription.UTF8String);
     }];
 }
@@ -2216,7 +2386,52 @@ end tell\n", path, path, name, indexPath];
 }
 
 - (void)menuHide:(NSMenuItem *)item {
-    [[self runningForTile:item.representedObject] hide];
+    [self hideApp:[self runningForTile:item.representedObject]];
+}
+
+// A native hide of the frontmost app makes macOS activate whichever app
+// was used before it, and AeroSpace follows that app to its workspace, so
+// the desktop jumps. Under AeroSpace an app is hidden by parking its
+// windows instead, after focus is handed to another window on this
+// workspace or else to the window-less dock. Cmd-H lands here too, as
+// SIGUSR2 from the aerospace binding.
+- (void)hideApp:(NSRunningApplication *)app {
+    if (!app || app.terminated || [app isEqual:NSRunningApplication.currentApplication]) return;
+    if (!app.active || !aerospaceManagesWindows()) { [app hide]; return; }
+    pid_t pid = app.processIdentifier;
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        NSString *other = nil;
+        NSString *list = aerospace(@[@"list-windows", @"--workspace", @"focused",
+                                     @"--format", @"%{window-id}|%{app-pid}"]);
+        for (NSString *line in [list componentsSeparatedByString:@"\n"]) {
+            NSArray<NSString *> *f = [line componentsSeparatedByString:@"|"];
+            if (f.count == 2 && f[1].intValue != pid) { other = f[0]; break; }
+        }
+        if (other) aerospace(@[@"focus", @"--window-id", other]);
+        dispatch_async(dispatch_get_main_queue(), ^{
+            // activateWithOptions: from a background app is ignored since
+            // macOS 14; setting AXFrontmost through Accessibility is not
+            if (!other) {
+                AXUIElementRef me = AXUIElementCreateApplication(getpid());
+                AXUIElementSetAttributeValue(me, kAXFrontmostAttribute, kCFBooleanTrue);
+                CFRelease(me);
+            }
+            [self parkWhenInactive:app tries:12];
+        });
+    });
+}
+
+- (void)parkWhenInactive:(NSRunningApplication *)app tries:(int)tries {
+    if (!app.active || tries <= 0) {
+        pid_t pid = app.processIdentifier;
+        dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+            aerospaceParkApp(pid);
+        });
+        return;
+    }
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(25 * NSEC_PER_MSEC)), dispatch_get_main_queue(), ^{
+        [self parkWhenInactive:app tries:tries - 1];
+    });
 }
 
 - (void)menuQuit:(NSMenuItem *)item {
@@ -2417,6 +2632,12 @@ int main(void) {
         dispatch_source_t src = dispatch_source_create(DISPATCH_SOURCE_TYPE_SIGNAL, SIGUSR1, 0, dispatch_get_main_queue());
         dispatch_source_set_event_handler(src, ^{ [controller showTest]; });
         dispatch_resume(src);
+        signal(SIGUSR2, SIG_IGN);
+        dispatch_source_t hide = dispatch_source_create(DISPATCH_SOURCE_TYPE_SIGNAL, SIGUSR2, 0, dispatch_get_main_queue());
+        dispatch_source_set_event_handler(hide, ^{
+            [controller hideApp:NSWorkspace.sharedWorkspace.frontmostApplication];
+        });
+        dispatch_resume(hide);
         signal(SIGTERM, SIG_IGN);
         dispatch_source_t term = dispatch_source_create(DISPATCH_SOURCE_TYPE_SIGNAL, SIGTERM, 0, dispatch_get_main_queue());
         dispatch_source_set_event_handler(term, ^{

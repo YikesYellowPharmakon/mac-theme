@@ -99,6 +99,14 @@ func aerospace(_ args: [String]) -> String {
     return String(data: data, encoding: .utf8) ?? ""
 }
 
+// A hidden app's windows wait here. AeroSpace keeps them on their own
+// workspace and focuses them, which unhides the app, the moment anything
+// switches back to it; parked, the workspace they left is truly empty.
+// The dock, omacosy-ws, omacosy-focus-guard and the overview all skip it.
+let parkWorkspace = "hidden"
+let parkOriginPath = "/tmp/omacosy-hidden-origin-\(getuid())"
+var lastRealWorkspace = ""
+
 // The OTHER window manager. omacosy-wm-switch can hand the session from
 // AeroSpace to OmniWM (and back) while this daemon runs, so which one is
 // asked is decided per use, never cached: the running-app check is an
@@ -436,7 +444,7 @@ func aerospaceSnapshot() -> Snapshot {
                            "%{workspace}|%{monitor-id}|%{workspace-is-visible}"])
         .split(separator: "\n") {
         let f = line.split(separator: "|", omittingEmptySubsequences: false).map(String.init)
-        guard f.count >= 3 else { continue }
+        guard f.count >= 3, f[0] != parkWorkspace else { continue }
         sets[f[1], default: []].append(f[0])
         if f[2] == "true" { visible[f[1]] = f[0] }
     }
@@ -449,15 +457,12 @@ func aerospaceSnapshot() -> Snapshot {
     for line in aerospace(["list-windows", "--all", "--format",
                            "%{workspace}|%{app-name}|%{window-layout}"]).split(separator: "\n") {
         let f = line.split(separator: "|", omittingEmptySubsequences: false).map(String.init)
-        guard f.count >= 3 else { continue }
-        guard f[2] != "floating" else { continue }
+        guard f.count >= 3, f[0] != parkWorkspace else { continue }
+        guard !["floating", "macos_native_minimized", "macos_native_window_of_hidden_app"]
+            .contains(f[2]) else { continue }
         s.occupied.insert(f[0])
-        if let existing = sole[f[0]] {
-            if existing != f[1] { count[f[0]] = 2 }
-        } else {
-            sole[f[0]] = f[1]
-            count[f[0]] = 1
-        }
+        sole[f[0]] = f[1]
+        count[f[0], default: 0] += 1
     }
     s.soleApp = sole.filter { count[$0.key] == 1 }
     return s
@@ -550,6 +555,7 @@ func apply(_ s: Snapshot) -> Bool {
 // that owns the workspace also now shows it.
 func setFocused(_ ws: String) {
     model.focused = ws
+    if ws != parkWorkspace { lastRealWorkspace = ws }
     for surface in surfaces where surface.mine.contains(ws) { surface.visible = ws }
 }
 
@@ -4013,6 +4019,108 @@ NSWorkspace.shared.notificationCenter.addObserver(
     forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
 ) { _ in applyShade() }
 
+// --- hidden apps -------------------------------------------------------------
+// Hiding parks the app's windows on parkWorkspace; unhiding brings them to
+// the workspace in use, or, when that one is fullscreen, to a workspace
+// of their own. A dock click unparks before it unhides, so here that is
+// left to Cmd-Tab and to apps that unhide themselves. Both stamps feed
+// omacosy-focus-guard: hiding hands focus to the next app and aerospace
+// follows it away, and an unhide can pass through parkWorkspace on its
+// way out.
+let hideStampPath = "/tmp/omacosy-app-hidden-\(getuid())"
+let unhideStampPath = "/tmp/omacosy-app-unhidden-\(getuid())"
+
+func readParkOrigins() -> [String: String] {
+    guard let text = try? String(contentsOfFile: parkOriginPath, encoding: .utf8) else { return [:] }
+    var origins: [String: String] = [:]
+    for line in text.split(separator: "\n") {
+        let f = line.split(separator: " ").map(String.init)
+        if f.count == 2 { origins[f[0]] = f[1] }
+    }
+    return origins
+}
+
+func writeParkOrigins(_ origins: [String: String]) {
+    let text = origins.map { "\($0.key) \($0.value)\n" }.joined()
+    try? text.write(toFile: parkOriginPath, atomically: true, encoding: .utf8)
+}
+
+func aerospaceAppWindows(_ pid: pid_t) -> [(id: String, ws: String)] {
+    aerospace(["list-windows", "--monitor", "all", "--pid", "\(pid)",
+               "--format", "%{window-id}|%{workspace}"])
+        .split(separator: "\n").compactMap { line in
+            let f = line.split(separator: "|").map(String.init)
+            return f.count == 2 ? (id: f[0], ws: f[1]) : nil
+        }
+}
+
+func aerospaceWorkspaceIsFullscreen(_ ws: String) -> Bool {
+    aerospace(["list-windows", "--workspace", ws, "--format", "%{window-layout}|%{window-is-fullscreen}"])
+        .split(separator: "\n")
+        .contains { $0.hasPrefix("macos_native_fullscreen|") || $0.hasSuffix("|true") }
+}
+
+func aerospaceWorkspaceIsEmpty(_ ws: String) -> Bool {
+    aerospace(["list-windows", "--workspace", ws, "--count"])
+        .trimmingCharacters(in: .whitespacesAndNewlines) == "0"
+}
+
+func parkHiddenApp(_ pid: pid_t) {
+    var origins = readParkOrigins()
+    var left = Set<String>()
+    for w in aerospaceAppWindows(pid) where w.ws != parkWorkspace {
+        origins[w.id] = w.ws
+        left.insert(w.ws)
+        aerospace(["move-node-to-workspace", "--window-id", w.id, parkWorkspace])
+    }
+    guard !left.isEmpty else { return }
+    writeParkOrigins(origins)
+    try? (left.joined(separator: "\n") + "\n").write(toFile: hideStampPath, atomically: true, encoding: .utf8)
+}
+
+func unparkApp(_ pid: pid_t, here: String) {
+    let parked = aerospaceAppWindows(pid).filter { $0.ws == parkWorkspace }
+    guard let first = parked.first else { return }
+    var origins = readParkOrigins()
+    let home = origins[first.id] ?? ""
+    var dest = here
+    if dest.isEmpty || aerospaceWorkspaceIsFullscreen(dest) {
+        if !home.isEmpty, home != dest, aerospaceWorkspaceIsEmpty(home) {
+            dest = home
+        } else {
+            dest = aerospace(["list-workspaces", "--monitor", "focused", "--empty"])
+                .split(separator: "\n").map(String.init).first { $0 != parkWorkspace } ?? ""
+        }
+    }
+    guard !dest.isEmpty else { return }
+    for w in parked {
+        aerospace(["move-node-to-workspace", "--window-id", w.id, dest])
+        origins[w.id] = nil
+    }
+    writeParkOrigins(origins)
+    aerospace(["focus", "--window-id", first.id])
+}
+
+for event in [NSWorkspace.didHideApplicationNotification,
+              NSWorkspace.didUnhideApplicationNotification] {
+    NSWorkspace.shared.notificationCenter.addObserver(forName: event, object: nil, queue: .main) { note in
+        guard !omniwmActive(),
+              let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
+        else { kickRebuild(); return }
+        let pid = app.processIdentifier
+        if event == NSWorkspace.didHideApplicationNotification {
+            // stamped before parking so the guard knows to wait for it
+            FileManager.default.createFile(atPath: hideStampPath, contents: nil)
+            rebuildQueue.async { parkHiddenApp(pid) }
+        } else {
+            FileManager.default.createFile(atPath: unhideStampPath, contents: nil)
+            let here = lastRealWorkspace
+            rebuildQueue.async { unparkApp(pid, here: here) }
+        }
+        kickRebuild()
+    }
+}
+
 // media: Spotify broadcasts every state change itself, and the payload
 // already carries the track — so the pill repaints without asking anyone
 // anything. Launch and quit are the one pair it cannot announce.
@@ -4053,6 +4161,7 @@ model.focused = omniwmActive()
         as? [[String: Any]])?.first?["rawName"] as? String ?? "")
     : aerospace(["list-workspaces", "--focused"])
         .trimmingCharacters(in: .whitespacesAndNewlines)
+if model.focused != parkWorkspace { lastRealWorkspace = model.focused }
 rebuildSurfaces()
 guard !surfaces.isEmpty else {
     FileHandle.standardError.write("omacosy-bar: no display matched \(omniwmActive() ? "an omniwm" : "an aerospace") monitor\n".data(using: .utf8)!)

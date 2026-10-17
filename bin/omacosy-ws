@@ -67,7 +67,7 @@ case "$op" in
     if [ "$nmon" = 1 ]; then
       all="$("$A" list-workspaces --monitor "$mon" | grep -E '^[0-9]$' | tr '\n' ' ')"
     else
-      all="$("$A" list-workspaces --monitor "$mon" | tr '\n' ' ')"
+      all="$("$A" list-workspaces --monitor "$mon" | grep -vx hidden | tr '\n' ' ')"
     fi
     target="$(printf '%s\n' $all | awk -v cur="$cur" -v dir="$op" '
       { ws[NR] = $0 }

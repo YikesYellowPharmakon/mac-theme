@@ -34,6 +34,99 @@ fi
 
 [ -n "$AEROSPACE_PREV_WORKSPACE" ] || exit 0
 
+# Hidden apps' windows are parked on this workspace, by the dock on Cmd-H
+# and by omacosy-bar on a native hide.
+PARK=hidden
+ORIGINS="/tmp/omacosy-hidden-origin-$U"
+fresh() { [ -f "$1" ] && [ $(($(date +%s) - $(stat -f %m "$1"))) -le 1 ]; }
+is_fullscreen() {
+  /opt/homebrew/bin/aerospace list-windows --workspace "$1" \
+    --format '%{window-layout}|%{window-is-fullscreen}' 2>/dev/null |
+    grep -q -e '^macos_native_fullscreen|' -e '|true$'
+}
+
+# Landing on the parking workspace: an unhide (Cmd-Tab) passes through it
+# while the bar moves the windows out, so stand aside for that. A swipe
+# walks every workspace: carry on past it in the same direction. Anything
+# else activated a parked app (Cmd-Tab to an app the dock parked): bring
+# its windows back to the workspace in use, or to an empty one when that
+# is in native fullscreen.
+if [ "$AEROSPACE_FOCUSED_WORKSPACE" = "$PARK" ]; then
+  sleep 0.15
+  fresh "/tmp/omacosy-app-unhidden-$U" && exit 0
+  pid=$(/opt/homebrew/bin/aerospace list-windows --focused --format '%{app-pid}' 2>/dev/null)
+  wid=$(/opt/homebrew/bin/aerospace list-windows --focused --format '%{window-id}' 2>/dev/null)
+  if ! fresh "$INTENT" && [ -n "$wid" ]; then
+    dest=$AEROSPACE_PREV_WORKSPACE
+    if is_fullscreen "$dest"; then
+      home=$(awk -v w="$wid" '$1 == w { print $2 }' "$ORIGINS" 2>/dev/null)
+      if [ -n "$home" ] && [ "$home" != "$dest" ] &&
+        [ "$(/opt/homebrew/bin/aerospace list-windows --workspace "$home" --count 2>/dev/null)" = 0 ]; then
+        dest=$home
+      else
+        dest=$(/opt/homebrew/bin/aerospace list-workspaces --monitor focused --empty 2>/dev/null | grep -vx "$PARK" | head -1)
+      fi
+    fi
+    for w in $(/opt/homebrew/bin/aerospace list-windows --workspace "$PARK" --format '%{window-id}|%{app-pid}' 2>/dev/null |
+      awk -F'|' -v p="$pid" '$2 == p { print $1 }'); do
+      /opt/homebrew/bin/aerospace move-node-to-workspace --window-id "$w" "$dest"
+      if [ -f "$ORIGINS" ]; then
+        grep -v "^$w " "$ORIGINS" >"$ORIGINS.tmp"
+        mv "$ORIGINS.tmp" "$ORIGINS"
+      fi
+    done
+    printf '%s' "$dest" >"$BOUNCE"
+    /opt/homebrew/bin/aerospace workspace "$dest"
+    exec /opt/homebrew/bin/aerospace focus --window-id "$wid"
+  fi
+  ring=$(/opt/homebrew/bin/aerospace list-workspaces --monitor focused 2>/dev/null | grep -vx "$PARK")
+  first=$(head -1 <<<"$ring")
+  last=$(tail -1 <<<"$ring")
+  target=$AEROSPACE_PREV_WORKSPACE
+  [ "$target" = "$last" ] && target=$first
+  [ "$target" = "$first" ] && [ "$AEROSPACE_PREV_WORKSPACE" = "$first" ] && target=$last
+  printf '%s' "$target" >"$BOUNCE"
+  exec /opt/homebrew/bin/aerospace workspace "$target"
+fi
+# never bounce anyone back onto it
+[ "$AEROSPACE_PREV_WORKSPACE" = "$PARK" ] && exit 0
+
+# Hiding an app (Cmd-H, the dock's Hide) hands focus to whatever app is
+# next, and aerospace follows it to that app's workspace. The keypress
+# makes the jump look user-driven, so it is caught here: the bar parks the
+# hidden windows and stamps the workspaces they left, and if this switch
+# left one of those, now empty, go back to it. This hook can start before
+# aerospace has even marked the window hidden, so the bar stamps the hide
+# at once and fills in the workspaces once the windows are parked. Only a
+# workspace that held a single app's windows can have been emptied by a
+# hide, which keeps the wait off every other switch.
+HIDDEN="/tmp/omacosy-app-hidden-$U"
+left_by_hide() {
+  local owners _
+  owners=$(/opt/homebrew/bin/aerospace list-windows --workspace "$AEROSPACE_PREV_WORKSPACE" \
+    --format '%{app-pid}' 2>/dev/null | sort -u)
+  [ "$(grep -c . <<<"$owners")" -le 1 ] || return 1
+  for _ in 1 2 3 4; do
+    fresh "$HIDDEN" && break
+    sleep 0.05
+  done
+  fresh "$HIDDEN" || return 1
+  for _ in 1 2 3 4 5 6 7 8 9 10; do
+    if grep -qx "$AEROSPACE_PREV_WORKSPACE" "$HIDDEN" 2>/dev/null \
+      && [ "$(/opt/homebrew/bin/aerospace list-windows --workspace "$AEROSPACE_PREV_WORKSPACE" --count 2>/dev/null)" = 0 ]; then
+      return 0
+    fi
+    sleep 0.05
+  done
+  return 1
+}
+if left_by_hide; then
+  rm -f "$HIDDEN"
+  echo "$(date '+%F %T') hide: back $AEROSPACE_FOCUSED_WORKSPACE -> $AEROSPACE_PREV_WORKSPACE" >>/tmp/omacosy-focus-guard.log
+  printf '%s' "$AEROSPACE_PREV_WORKSPACE" >"$BOUNCE"
+  exec /opt/homebrew/bin/aerospace workspace "$AEROSPACE_PREV_WORKSPACE"
+fi
+
 # one bounce per 3s window: aerospace can deliver hooks for rapid
 # switches out of order, so a marker mismatch must not let two guard
 # instances ping-pong the desktop between workspaces

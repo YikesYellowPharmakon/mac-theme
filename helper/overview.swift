@@ -314,7 +314,8 @@ func aerospaceSnapshot(mon: Int) -> (order: [String], wins: [String: [Win]], foc
         "%{workspace}\t%{window-id}\t%{app-name}\t%{window-title}\t%{app-bundle-path}\t%{workspace-is-focused}"])
         .split(separator: "\n") {
         let f = line.split(separator: "\t", omittingEmptySubsequences: false).map(String.init)
-        guard f.count >= 6, !f[0].isEmpty, let wid = UInt32(f[1]) else { continue }
+        // "hidden" is where omacosy-bar parks the windows of hidden apps
+        guard f.count >= 6, !f[0].isEmpty, f[0] != "hidden", let wid = UInt32(f[1]) else { continue }
         wins[f[0], default: []].append(Win(id: wid, wmId: f[1], app: f[2], title: f[3], bundle: f[4]))
         if f[5] == "true" { focused = f[0] }
     }
@@ -329,7 +330,7 @@ func aerospaceSnapshot(mon: Int) -> (order: [String], wins: [String: [Win]], foc
     // workspaces only (main: 1-9, secondary: 11-19); digits address
     // slots (the name's last digit)
     var all = aerospace(["list-workspaces", "--monitor", String(mon)])
-        .split(separator: "\n").map(String.init)
+        .split(separator: "\n").map(String.init).filter { $0 != "hidden" }
     if all.isEmpty { all = order }
     let monSet = Set(all)
     for k in wins.keys where !monSet.contains(k) { wins.removeValue(forKey: k) }

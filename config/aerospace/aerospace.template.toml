@@ -143,6 +143,9 @@ alt-f = 'exec-and-forget $HOME/.local/bin/omacosy-layout togglefull'
 # native (green-button) fullscreen: a separate Space. Hover the top
 # edge to get the auto-hidden menu bar and the traffic lights.
 alt-n = 'macos-native-fullscreen'
+# Cmd-H through the dock: it hands focus to something on this workspace
+# before hiding, so aerospace does not follow focus to another one.
+cmd-h = 'exec-and-forget /usr/bin/pkill -USR2 -f "Omacosy Dock.app/Contents/MacOS/omacosy-dock"'
 
 # Resize (omarchy: Super+Minus / Super+Equal)
 alt-minus = 'exec-and-forget $HOME/.local/bin/omacosy-layout resize -50'
