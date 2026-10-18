@@ -671,6 +671,25 @@ func shell(_ launch: String, _ args: [String]) -> String {
     shell2(launch, args).out
 }
 
+// Set on the click, before the new process shows up in ps, so a second
+// click in that gap closes instead of starting another one.
+var activityOpening = false
+
+// Ghostty processes the activity chip opened. A normal Ghostty does not
+// carry this title, so ending these never closes a terminal the user opened.
+func activityGhosttyPIDs() -> [pid_t] {
+    var pids: [pid_t] = []
+    for raw in shell("/bin/ps", ["-axo", "pid=,command="]).split(separator: "\n") {
+        let line = raw.trimmingCharacters(in: .whitespaces)
+        guard line.contains("--title=omacosy-activity"),
+              line.contains("ghostty") else { continue }
+        guard let pid = pid_t(line.split(separator: " ", maxSplits: 1).first.map(String.init) ?? ""),
+              pid > 1 else { continue }
+        pids.append(pid)
+    }
+    return pids
+}
+
 func shell2(_ launch: String, _ args: [String]) -> (out: String, err: String, status: Int32) {
     let p = Process()
     p.executableURL = URL(fileURLWithPath: launch)
@@ -3018,11 +3037,25 @@ final class BarView: NSView {
             NSWorkspace.shared.open(
                 URL(string: "x-apple.systempreferences:com.apple.Battery-Settings.extension")!)
         case "activity":
+            // One btop window. Clicking again ends that one instead of
+            // opening another: leftovers stay in Ghostty's window list and
+            // the dock then focuses them instead of launching a terminal.
+            let open = activityGhosttyPIDs()
+            if !open.isEmpty || activityOpening {
+                activityOpening = false
+                DispatchQueue.global(qos: .userInitiated).async {
+                    for _ in 0..<8 {
+                        let pids = activityGhosttyPIDs()
+                        if pids.isEmpty { usleep(100_000); continue }
+                        for pid in pids { kill(pid, SIGTERM) }
+                        return
+                    }
+                }
+                break
+            }
+            activityOpening = true
             DispatchQueue.global(qos: .userInitiated).async {
-                // Ghostty on macOS wraps `-e btop` as
-                // `/usr/bin/login -flp $USER btop`. login(1) does not
-                // take a command, so the window only showed an error.
-                // `--command=` replaces that login wrapper entirely.
+                if !activityOpening { return }
                 let run = NSHomeDirectory() + "/.local/bin/omacosy-activity"
                 let cmd = FileManager.default.isExecutableFile(atPath: run)
                     ? run
@@ -3034,6 +3067,11 @@ final class BarView: NSView {
                     "--title=omacosy-activity",
                     "--command=\(cmd)",
                 ])
+                if activityOpening {
+                    activityOpening = false
+                } else {
+                    for pid in activityGhosttyPIDs() { kill(pid, SIGTERM) }
+                }
             }
         default: break
         }
