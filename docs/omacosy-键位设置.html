@@ -150,7 +150,6 @@
   <tr><td><span class="k">⌥ T</span></td><td>当前窗口在平铺 / 浮动之间切换</td></tr>
   <tr><td><span class="k">⌥ J</span></td><td>切换分割方向（左右 / 上下）</td></tr>
   <tr><td><span class="k">⌥ -</span> / <span class="k">⌥ =</span></td><td>缩小 / 放大当前窗口</td></tr>
-  <tr><td><span class="k">⌥ F</span></td><td>铺满全屏并盖住顶栏，仍在当前工作区；再按退出。鼠标移到顶端顶栏会浮出</td></tr>
   <tr><td><span class="k">⌥ N</span></td><td>系统原生全屏（独立桌面，等同绿钮）</td></tr>
   <tr><td><span class="k">⌥ R</span></td><td>进入调整大小模式（见下）</td></tr>
   <tr><td><span class="k">⌥ Shift ;</span></td><td>进入服务模式（见下）</td></tr>
@@ -275,6 +274,57 @@
   <tr><td><span class="k">/文字</span></td><td>向下搜索。n 下一个，N 上一个</td></tr>
   <tr><td><span class="k">:e 文件</span></td><td>打开另一个文件，Tab 补全名字</td></tr>
   <tr><td><span class="k">"+y / "+p</span></td><td>复制到系统剪贴板，或从剪贴板贴进来</td></tr>
+</table>
+
+<h2>nano（写 Python）</h2>
+<table>
+  <tr><th>键位</th><th>作用</th></tr>
+  <tr><td><span class="k">nano -w 文件.py</span></td><td>打开或新建。写 Python 一定加 -w，否则长行会被折断</td></tr>
+  <tr><td><span class="k">Ctrl O</span></td><td>保存，回车确认文件名</td></tr>
+  <tr><td><span class="k">Ctrl X</span></td><td>退出。没保存会问：Y 保存，N 不保存</td></tr>
+  <tr><td><span class="k">Ctrl W</span></td><td>搜索</td></tr>
+  <tr><td><span class="k">Ctrl K / Ctrl U</span></td><td>剪切一行 / 贴回来</td></tr>
+  <tr><td><span class="k">Ctrl G</span></td><td>帮助</td></tr>
+  <tr><td><span class="k">python3 文件.py</span></td><td>运行。<span class="k">python3 -i 文件.py</span> 运行完留在 Python 里看变量</td></tr>
+</table>
+
+<h2>pudb 调试</h2>
+<table>
+  <tr><th>键位</th><th>作用</th></tr>
+  <tr><td><span class="k">pudb 文件.py</span></td><td>逐行调试。左边代码，右边变量，第一次打开回车用默认设置</td></tr>
+  <tr><td><span class="k">n</span></td><td>执行下一行</td></tr>
+  <tr><td><span class="k">s</span></td><td>进入函数内部</td></tr>
+  <tr><td><span class="k">f</span></td><td>跑完当前函数再停</td></tr>
+  <tr><td><span class="k">b</span></td><td>在光标那一行设 / 取消断点</td></tr>
+  <tr><td><span class="k">c</span></td><td>一直跑到下一个断点</td></tr>
+  <tr><td><span class="k">o</span></td><td>看程序输出，任意键回来</td></tr>
+  <tr><td><span class="k">?</span> / <span class="k">q</span></td><td>帮助 / 退出</td></tr>
+  <tr><td><span class="k">breakpoint()</span></td><td>不用 pudb 时：写进代码，运行到这里停下进入 pdb（n 下一行，p 变量 看值，c 继续，q 退出）</td></tr>
+</table>
+
+<h2>Thonny</h2>
+<table>
+  <tr><th>键位</th><th>作用</th></tr>
+  <tr><td><span class="k">fn</span></td><td>F5–F8 在 Mac 上要按 fn+F5 等，除非系统设置里把 F 键设成标准功能键</td></tr>
+  <tr><td><span class="k">⌘N / ⌘O / ⌘S</span></td><td>新建 / 打开... / 保存（文件菜单）。⌘⇧S 另存为，⌘W 关闭</td></tr>
+  <tr><td><span class="k">⌘Z / ⌘Y</span></td><td>撤销 / 重做</td></tr>
+  <tr><td><span class="k">⌘F / ⌘G</span></td><td>查找和替换 / 跳转到行</td></tr>
+  <tr><td><span class="k">⌘3</span></td><td>注释⇋代码：把选中的行注释掉或恢复</td></tr>
+  <tr><td><span class="k">Ctrl 空格</span></td><td>自动补全（可能被 macOS 切换输入法抢走）</td></tr>
+  <tr><td><span class="k">⌘+ / ⌘−</span></td><td>增大 / 缩小字体</td></tr>
+  <tr><td><span class="k">⌘⌥E / ⌘⌥S</span></td><td>切换到编辑器 / 切换到 Shell</td></tr>
+  <tr><td><span class="k">F5</span></td><td>运行当前脚本（绿色箭头），输出在下面的 Shell</td></tr>
+  <tr><td><span class="k">Ctrl C</span></td><td>中断执行，比如卡在死循环（control 键，不是 ⌘）</td></tr>
+  <tr><td><span class="k">Ctrl F2</span></td><td>停止/重启后端进程（红色 Stop）</td></tr>
+  <tr><td><span class="k">⌘K</span></td><td>清空 Shell</td></tr>
+  <tr><td><span class="k">Ctrl T</span></td><td>在终端运行当前脚本</td></tr>
+  <tr><td><span class="k">Ctrl F5</span></td><td>调试当前脚本(nicer)：逐个表达式演示计算（小虫子图标）。⇧F5 是 faster，按行走</td></tr>
+  <tr><td><span class="k">F6 / F7</span></td><td>步过：执行下一步 / 步进：进入函数内部</td></tr>
+  <tr><td><span class="k">步出</span></td><td>跳出当前函数。没有默认快捷键，点工具栏「步出」</td></tr>
+  <tr><td><span class="k">F8</span></td><td>恢复执行，跑到结束或下一个断点</td></tr>
+  <tr><td><span class="k">Ctrl F8 / ⌘B</span></td><td>运行至光标处 / 步回一步</td></tr>
+  <tr><td><span class="k">视图菜单</span></td><td>打开「全局变量」看变量的值，「助手」解释错误（出错时自动打开）</td></tr>
+  <tr><td><span class="k">报错行可点</span></td><td>Shell 里红色报错的 File … line N 可以点，跳到出错那一行</td></tr>
 </table>
 
 <h2>学院 Linux</h2>

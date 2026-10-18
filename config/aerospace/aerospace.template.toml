@@ -139,7 +139,7 @@ alt-shift-right = 'swap right'
 alt-t = 'exec-and-forget $HOME/.local/bin/omacosy-layout togglefloat'
 alt-s = 'exec-and-forget $HOME/.local/bin/omacosy-float'
 alt-j = 'exec-and-forget $HOME/.local/bin/omacosy-layout togglesplit'
-alt-f = 'exec-and-forget $HOME/.local/bin/omacosy-layout togglefull'
+# alt-f (fill the workspace over the bar) removed 2026-10-18; use native fullscreen
 # native (green-button) fullscreen: a separate Space. Hover the top
 # edge to get the auto-hidden menu bar and the traffic lights.
 alt-n = 'macos-native-fullscreen'

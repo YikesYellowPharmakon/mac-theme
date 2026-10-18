@@ -3407,9 +3407,21 @@ func focusedIsNativeFullscreen() -> Bool {
             return true
         }
     }
-    let layout = aerospace(["list-windows", "--focused", "--format", "%{window-layout}"])
+    let row = aerospace(["list-windows", "--focused", "--format", "%{app-bundle-id}|%{window-layout}"])
         .trimmingCharacters(in: .whitespacesAndNewlines)
-    nativeFSCached = layout == "macos_native_fullscreen"
+    let parts = row.split(separator: "|", maxSplits: 1).map(String.init)
+    // AeroSpace never saw the frontmost app's window (Thonny and other Tk
+    // apps run from a launcher script; they report no AXFullScreen
+    // either): its "focused" answer is still the last window it manages,
+    // in another app. An unmanaged window cannot be AeroSpace-fullscreen,
+    // so if it covers the screen it is native or the app's own fullscreen
+    // — either way the edge belongs to macOS, not to a climbing bar.
+    // The only caller acts only while the screen reads as covered.
+    if let bundle = front.bundleIdentifier, parts.first != bundle {
+        nativeFSCached = true
+        return true
+    }
+    nativeFSCached = parts.count > 1 && parts[1] == "macos_native_fullscreen"
     return nativeFSCached
 }
 

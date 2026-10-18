@@ -158,7 +158,7 @@ Super = Option. Command is still macOS.
 | `⌥ ←↓↑→` | focus in that direction |
 | `⌥ Shift ←↓↑→` | swap with the window in that direction |
 | `⌥ T` | tile / float |
-| `⌥ F` / `⌥ N` | fill this workspace / native fullscreen |
+| `⌥ N` | native fullscreen |
 | `⌥ Enter` / `⌥ Shift Enter` | Ghostty / Chrome |
 | `⌥ Space` | local file search (`⌘ Space` is Spotlight) |
 | `⌥ Shift T` / `⌥ Shift B` | next theme / next wallpaper |
